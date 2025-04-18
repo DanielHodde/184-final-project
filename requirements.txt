@@ -1,0 +1,3 @@
+numpy
+pyvista
+# Add torch and torchvision for neural style transfer later
