@@ -1,4 +1,4 @@
-# Terrain Project Skeleton
+# Procedural Generation with Style Transfer 
 
 This project explores various terrain generation algorithms, visualizes them, and applies neural style transfer to influence the generated terrains.
 
