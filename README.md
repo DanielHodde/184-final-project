@@ -20,6 +20,6 @@ This project explores various terrain generation algorithms, visualizes them, an
 
 ## Roadmap
 - [x] Project skeleton
-- [ ] Implement Perlin and Fractal Perlin noise generation
-- [ ] Visualization with PyVista
+- [x] Implement Perlin and Fractal Perlin noise generation
+- [x] Visualization with PyVista
 - [ ] Neural style transfer integration
