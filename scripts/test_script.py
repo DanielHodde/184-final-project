@@ -94,7 +94,7 @@ def generate_tree_density(terrain, size=128):
     return density
 
 
-def visualize_terrain_with_trees(terrain, tree_density, tree_threshold=0.7):
+def visualize_terrain_with_trees(plotter, terrain, tree_density, tree_threshold=0.7):
     """Create a PyVista visualization of terrain with trees"""
     size = terrain.shape[0]
 
@@ -105,9 +105,6 @@ def visualize_terrain_with_trees(terrain, tree_density, tree_threshold=0.7):
 
     # Create structured grid for the terrain
     grid = pv.StructuredGrid(xx, yy, terrain)
-
-    # Create a plotter
-    plotter = pv.Plotter()
 
     # Define terrain colors based on elevation
     min_h, max_h = float(np.min(terrain)), float(np.max(terrain))
@@ -218,4 +215,3 @@ if __name__ == "__main__":
 
     # Visualize the terrain with trees
     visualize_terrain_with_trees(terrain, tree_density, tree_threshold=0.6)
-
