@@ -1,11 +1,9 @@
 import sys
 
-from qtpy import QtWidgets
-
-from app import MainWindow
 from cli import noise_functions, parser
+from qt.app import TerrainApp
+from qt.tracks import circle_track
 from terrain.visualization.pyvista_vis import (
-    add_trees_to_plotter,
     generate_tree_density,
     plot_terrain,
     visualize_terrain_with_trees,
@@ -13,8 +11,8 @@ from terrain.visualization.pyvista_vis import (
 
 
 def main():
-    app = QtWidgets.QApplication(sys.argv)
-    window = MainWindow()
+    app = TerrainApp()
+    app.get_view().track_path(circle_track([50, 50, 50], 120))
 
     args = parser.parse_args()
 
@@ -24,7 +22,7 @@ def main():
 
     generate_noise = noise_functions[noise_type]
 
-    plotter = window.plotter
+    plotter = app.get_plotter()
     terrain = generate_noise() * 10
     plot_terrain(plotter, terrain, show=False)
 
@@ -37,7 +35,7 @@ def main():
             tree_density,
         )
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
