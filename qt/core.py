@@ -31,22 +31,8 @@ class TCore:
     def track_path(self, path):
         self.camera.track_path(path)
 
-    def parse_parameter_tree(self):
-        return {
-            "noise": {
-                "value": self.tree.child("noise").currentText(),
-                "children": {
-                    "height scale": self.tree.child("noise")
-                    .child("height scale")
-                    .text()
-                },
-            },
-            "trees": self.tree.child("trees").isChecked(),
-            "style-transfer": self.tree.child("style-transfer").isChecked(),
-        }
-
     def handle_update(self):
-        args = self.parse_parameter_tree()
+        args = self.tree.parse_values()
         self.update_plotter(self.display.get_plotter(), args)
 
     def update_plotter(self, plotter, args):

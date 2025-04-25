@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QSpacerItem,
-    QSpinBox,
 )
 from pyvistaqt import QtInteractor
 
@@ -33,10 +32,25 @@ PARAMS = [
 ]
 
 
+def get_value(widget):
+    if isinstance(widget, QComboBox):
+        return widget.currentText()
+    elif isinstance(widget, QCheckBox):
+        return widget.isChecked()
+    elif isinstance(widget, QLineEdit):
+        return widget.text()
+    elif isinstance(widget, WidgetOrPT):
+        return widget.parse_values()
+    return None
+
+
 class WidgetOrPT:
     def __init__(self, widget, tree):
         self.widget = widget
         self.tree = tree
+
+    def parse_values(self):
+        return {"value": get_value(self.widget), "children": self.tree.parse_values()}
 
     def __getattr__(self, attr):
         if hasattr(self.tree, attr):
@@ -105,6 +119,14 @@ class ParameterTree(QtWidgets.QWidget):
             self.layout.addWidget(pt)
             self.map[parameter["name"]] = WidgetOrPT(node, pt)
             pt.parameterChanged.connect(self.parameterChanged.emit)
+
+    def parse_values(self):
+        mappings = {}
+        for key in self.map:
+            widget = self.child(key)
+            mappings[key] = get_value(widget)
+
+        return mappings
 
 
 class Console(QtWidgets.QWidget):
