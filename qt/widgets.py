@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QSpacerItem,
     QSpinBox,
 )
@@ -87,11 +88,10 @@ class ParameterTree(QtWidgets.QWidget):
             node.toggled.connect(self.parameterChanged.emit)
 
         elif ptype == "float":
-            node = QSpinBox()
-            node.setValue(parameter.get("default", 0))
-            node.setMinimum(parameter.get("min", 0))
-            node.setMaximum(parameter.get("max", 100))
-            node.valueChanged.connect(self.parameterChanged.emit)
+            node = QLineEdit()
+            node.setText(str(parameter.get("default", 0)))
+
+            node.returnPressed.connect(self.parameterChanged.emit)
 
         hb = QHBoxLayout()
         hb.addWidget(label)

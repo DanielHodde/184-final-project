@@ -38,7 +38,7 @@ class TCore:
                 "children": {
                     "height scale": self.tree.child("noise")
                     .child("height scale")
-                    .value()
+                    .text()
                 },
             },
             "trees": self.tree.child("trees").isChecked(),
@@ -53,7 +53,7 @@ class TCore:
         plotter.clear()
 
         noise_type = args["noise"]["value"]
-        height_scale = args["noise"]["children"]["height scale"]
+        height_scale = int(args["noise"]["children"]["height scale"])
         is_tree_enabled = args["trees"]
         is_style_transfer_enabled = args["style-transfer"]
 
