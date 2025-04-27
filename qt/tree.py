@@ -53,7 +53,9 @@ class PTGroup:
                 signal = ct.push(c)
                 arg = PTValue(c["default"])
                 default_args.append(arg)
-                signal.connect(arg.set_value)
+
+                if signal:
+                    signal.connect(arg.set_value)
 
         ret_func = PTCallable(func, default_args)
         self.cache[identifier] = ret_func
