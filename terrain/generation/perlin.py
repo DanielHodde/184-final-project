@@ -4,6 +4,7 @@ Perlin noise terrain generation implementation.
 
 import numpy as np
 
+
 def generate_perlin_noise(shape=(100, 100), scale=10, offset=(0.0, 0.0), zoom=1.0):
     """
     Generate a 2D Perlin noise array.
@@ -15,6 +16,7 @@ def generate_perlin_noise(shape=(100, 100), scale=10, offset=(0.0, 0.0), zoom=1.
     Returns:
         np.ndarray: 2D array of Perlin noise values in range [-1, 1].
     """
+
     def lerp(a, b, t):
         return a + t * (b - a)
 
@@ -24,9 +26,11 @@ def generate_perlin_noise(shape=(100, 100), scale=10, offset=(0.0, 0.0), zoom=1.
     def gradient(h, x, y):
         """Convert hash value to gradient and compute dot product with (x, y) offset."""
         # 8 possible directions
-        vectors = np.array([[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,1],[1,-1],[-1,-1]])
+        vectors = np.array(
+            [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]]
+        )
         g = vectors[h % 8]
-        return g[...,0]*x + g[...,1]*y
+        return g[..., 0] * x + g[..., 1] * y
 
     h, w = shape
     # Adjust scale by zoom and apply offset
@@ -54,9 +58,9 @@ def generate_perlin_noise(shape=(100, 100), scale=10, offset=(0.0, 0.0), zoom=1.
 
     # Hash grid corners
     n00 = gradient(hash_coords(x0, y0), sx, sy)
-    n10 = gradient(hash_coords(x1, y0), sx-1, sy)
-    n01 = gradient(hash_coords(x0, y1), sx, sy-1)
-    n11 = gradient(hash_coords(x1, y1), sx-1, sy-1)
+    n10 = gradient(hash_coords(x1, y0), sx - 1, sy)
+    n01 = gradient(hash_coords(x0, y1), sx, sy - 1)
+    n11 = gradient(hash_coords(x1, y1), sx - 1, sy - 1)
 
     # Interpolate
     u = fade(sx)

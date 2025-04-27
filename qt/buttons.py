@@ -44,7 +44,7 @@ class Buttons(QWidget):
         super().__init__()
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
-        self.buttons = [PlayButton(), SwitchButton()]
+        self.buttons = [PlayButton(), SwitchButton(), QPushButton("Update")]
 
         for b in self.buttons:
             self.layout.addWidget(b)
