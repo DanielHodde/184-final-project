@@ -68,22 +68,12 @@ class Console(QtWidgets.QWidget):
         opt = self.pt.register_option(name)
         return opt
 
-    def register_value(self, name, val, opt=None):
-        ret_val = None
-        if opt:
-            ret_val = opt.register_value(name, val)
-        else:
-            ret_val = self.pt.register_value(name, val)
+    def register_value(self, name, val):
+        ret_val = self.pt.register_value(name, val)
         return ret_val
 
-    def register_function(self, name, func, defaults, opt=None):
-        ret_func = None
-        if opt:
-            ret_func = opt.register_function(name, func, defaults)
-        else:
-            ret_func = self.pt.register_function(name, func, defaults)
-
-        self.info.register_function(name, ret_func)
+    def register_function(self, name, func, defaults):
+        ret_func = self.pt.register_function(name, func, defaults)
         return ret_func
 
 

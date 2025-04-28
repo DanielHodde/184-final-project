@@ -51,9 +51,12 @@ def get_update_plotter(app):
         opt = console.register_option("Noise")
 
         for noise in noise_functions:
-            console.register_function(
-                noise, noise_functions[noise], noise_defaults[noise], opt
+            func = opt.register_function(
+                noise, noise_functions[noise], noise_defaults[noise]
             )
+
+            # Register a function to the info panel to view its docstring
+            console.info.register_function(noise, func)
 
         generate_noise = opt.get_active_option()
 
