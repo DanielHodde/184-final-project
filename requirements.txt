@@ -27,3 +27,4 @@ six==1.17.0
 typing_extensions==4.13.2
 urllib3==2.4.0
 vtk==9.4.2
+tensorflow==2.19.0

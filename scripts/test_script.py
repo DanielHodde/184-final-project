@@ -1,6 +1,10 @@
 import numpy as np
 import pyvista as pv
 from scipy import ndimage
+# need to do noise generation using generate_perlin_noise and generate_fractal_perlin_noise
+from noise import snoise2
+import tensorflow as tf
+from tensorflow import keras
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -8,7 +12,6 @@ np.random.seed(42)
 
 def generate_terrain(size=128, octaves=6, persistence=0.5, lacunarity=2.0):
     """Generate a fractal terrain using Perlin noise"""
-    from noise import snoise2
 
     terrain = np.zeros((size, size))
 
@@ -32,18 +35,31 @@ def generate_terrain(size=128, octaves=6, persistence=0.5, lacunarity=2.0):
 
     return terrain
 
+def generate_perlin_terrain(size=128, scale=5.0):
+    """Generate a terrain using non-fractal (single octave) Perlin noise for comparison."""
+    terrain = np.zeros((size, size))
+    for i in range(size):
+        for j in range(size):
+            nx = i / size - 0.5
+            ny = j / size - 0.5
+            # Only use one octave, so no persistence/lacunarity
+            terrain[i][j] = snoise2(nx * scale, ny * scale, octaves=1)
+    # Normalize to 0-1 range
+    terrain = (terrain - np.min(terrain)) / (np.max(terrain) - np.min(terrain))
+    # Optionally apply same power scaling for visual parity
+    terrain = np.power(terrain, 1.5)
+    terrain *= 25.0
+    return terrain
 
 def add_trees_with_variation(
-    plotter,
-    terrain,
-    tree_indices,
-    base_height=3,
-    base_radius=0.7,
-    color="forestgreen",
-    seed=42,
-):
-    import numpy as np
-    import pyvista as pv
+        plotter,
+        terrain,
+        tree_indices,
+        base_height=3,
+        base_radius=0.7,
+        color="forestgreen",
+        seed=42,
+    ):
 
     rng = np.random.default_rng(seed)
     for idx in tree_indices:
@@ -208,10 +224,15 @@ def visualize_terrain_with_trees(plotter, terrain, tree_density, tree_threshold=
 if __name__ == "__main__":
     # Generate the terrain
     size = 128
-    terrain = generate_terrain(size=size)
+    # terrain = generate_terrain(size=size)
+    # terrain = generate_perlin_terrain(size=size, scale=3.0)
+    terrain = keras.preprocessing.image.load_img("neural/experiment.png", color_mode='grayscale', target_size=(128, 128))
+    terrain = keras.preprocessing.image.img_to_array(terrain)
+    # Remove the channel dimension for 2D terrain array
+    terrain = terrain.squeeze()
 
     # Generate tree density map
     tree_density = generate_tree_density(terrain, size=size)
-
+    plotter = pv.Plotter()
     # Visualize the terrain with trees
-    visualize_terrain_with_trees(terrain, tree_density, tree_threshold=0.6)
+    visualize_terrain_with_trees(plotter, terrain, tree_density, tree_threshold=0.6)
