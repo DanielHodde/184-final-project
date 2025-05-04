@@ -37,4 +37,9 @@ def add_erosion(
         amplitude *= persistence
 
     noise /= max_amplitude
+    noise_min = np.min(noise)
+    noise_max = np.max(noise)
+
+    noise = (noise - noise_min) / (noise_max - noise_min)
+    noise -= 0.5
     return noise
