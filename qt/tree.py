@@ -31,33 +31,23 @@ class PTGroup:
         self.cache[identifier] = ret_val
         return ret_val
 
-    def register_function(self, name, func, defaults):
+    def register_function(self, name, func):
         identifier = f"{name}_{self.tree.id}"
         if identifier in self.cache:
             return self.cache[identifier]
 
-        default_args = []
-        if len(defaults) > 0:
-            child_entries = [
-                dict(
-                    name=name,
-                    default=defaults[name],
-                )
-                for name in defaults
-            ]
+        ret_func = PTCallable(func)
+        defaults = ret_func.defaults
 
-            for c in child_entries:
-                ct = ParameterTree()
-                self.tree.layout.addWidget(ct)
+        for key in defaults:
+            ct = ParameterTree()
+            self.tree.layout.addWidget(ct)
 
-                signal = ct.push(c)
-                arg = PTValue(c["default"])
-                default_args.append(arg)
+            signal = ct.push(dict(name=key, default=defaults[key].value()))
+            arg = ret_func.defaults[key]
+            if signal:
+                signal.connect(arg.set_value)
 
-                if signal:
-                    signal.connect(arg.set_value)
-
-        ret_func = PTCallable(func, default_args)
         self.cache[identifier] = ret_func
         return ret_func
 
@@ -91,32 +81,34 @@ class PTOption(PTGroup):
         self.options = []
         self.idx = PTValue(0)
 
-    def register_value(self, name, val):
+    def register_value(self, name, val, show=True):
         identifier = f"{name}_{self.tree.id}"
         if identifier in self.cache:
             return self.cache[identifier]
 
         gtree = ParameterTree()
         group = PTGroup(gtree)
-        ret_val = group.register_value(name, val)
+        ret_val = PTValue(val)
+        if show:
+            ret_val = group.register_value(name, val)
         self.widgets.append(gtree)
         self.tree.layout.addWidget(gtree)
         self.options.addItem(name, ret_val)
 
-        if self.idx.value != len(self.widgets) - 1:
+        if self.idx.value() != len(self.widgets) - 1:
             gtree.hide()
 
         self.cache[identifier] = ret_val
         return ret_val
 
-    def register_function(self, name, func, defaults):
+    def register_function(self, name, func):
         identifier = f"{name}_{self.tree.id}"
         if identifier in self.cache:
             return self.cache[identifier]
 
         gtree = ParameterTree()
         group = PTGroup(gtree)
-        ret_func = group.register_function(name, func, defaults)
+        ret_func = group.register_function(name, func)
 
         self.widgets.append(gtree)
         self.tree.layout.addWidget(gtree)
@@ -129,12 +121,12 @@ class PTOption(PTGroup):
         return ret_func
 
     def set_idx(self, idx):
-        self.widgets[self.idx.value].hide()
+        self.widgets[self.idx.value()].hide()
         self.idx.set_value(idx)
-        self.widgets[self.idx.value].show()
+        self.widgets[self.idx.value()].show()
 
     def get_active_option(self):
-        idx = self.idx.value
+        idx = self.idx.value()
         if -1 < idx and idx < len(self.options):
             return self.options.itemData(idx)
         return None
@@ -145,14 +137,25 @@ class PTCallable:
     A wrapper around a function who's parameters are updateable PTValues
     """
 
-    def __init__(self, func, args=None):
+    def __init__(self, func):
         self.func = func
         self.signature = inspect.signature(func)
-        self.defaults = args or ()
+        self.defaults = {}
+        for param in self.signature.parameters.values():
+            if param.kind != param.POSITIONAL_ONLY and param.default != param.empty:
+                self.defaults[param.name] = PTValue(param.default)
 
     def __call__(self, *args, **kwargs):
-        defaults = [d.value for d in self.defaults]
-        return self.func(*args, *defaults, **kwargs)
+        defaults = {key: self.defaults[key].value() for key in self.defaults}
+        nkwargs = {}
+        for key in kwargs:
+            if key in defaults:
+                defaults[key] = kwargs[key]
+            else:
+                nkwargs[key] = kwargs[key]
+
+        defaults = [v for v in defaults.values()]
+        return self.func(*args, *defaults, **nkwargs)
 
 
 class PTValue:
@@ -161,14 +164,19 @@ class PTValue:
     """
 
     def __init__(self, value):
-        self.value = value
+        self.val = value
+
+    def value(self):
+        if isinstance(self.val, PTValue):
+            return self.val.value()
+        return self.val
 
     def set_value(self, value):
         new_value = str(value)
-        if new_value == "":
-            self.value = new_value
-        else:
-            self.value = ast.literal_eval(new_value)
+        try:
+            self.val = ast.literal_eval(new_value)
+        except Exception:
+            self.val = ""
 
 
 class PTStatic(PTValue):
@@ -177,7 +185,7 @@ class PTStatic(PTValue):
     """
 
     def __init__(self, value):
-        self.value = value
+        self.val = value
 
 
 class ParameterTree(QtWidgets.QWidget):
@@ -198,7 +206,7 @@ class ParameterTree(QtWidgets.QWidget):
 
     def push(self, parameter):
         default = parameter["default"]
-        label = QLabel(parameter["name"])
+        label = QLabel(parameter["name"].capitalize())
         node = None
         signal = None
 
@@ -220,7 +228,7 @@ class ParameterTree(QtWidgets.QWidget):
             signal = node.currentIndexChanged
 
         elif isinstance(default, PTStatic):
-            node = QLabel(str(default.value))
+            node = QLabel(str(default.value()))
 
         else:
             node = QLineEdit()

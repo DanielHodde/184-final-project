@@ -14,14 +14,15 @@ class TerrainApp(QApplication):
 
         self.main_window = MainWindow()
         self.graph = TerrainGraph()
+        self.ipanel = InfoPanel()
         self.console = Console()
 
         self.core = TCore(self.console, self.graph)
 
         self.window = self.main_window.window
-        self.main_window.hsplit.addWidget(self.graph)
-        self.main_window.hsplit.addWidget(self.console)
-        self.main_window.vsplit.addWidget(self.console.info)
+        self.main_window.vsplit_m.addWidget(self.graph)
+        self.main_window.vsplit_m.addWidget(self.ipanel)
+        self.main_window.vsplit_r.addWidget(self.console)
 
         self.main_window.show()
 
@@ -36,33 +37,24 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Procedural Terrain Generation")
         self.setCentralWidget(self.window)
 
-        self.hsplit = QtWidgets.QSplitter()
-        self.vsplit = QtWidgets.QVBoxLayout()
+        self.vsplit_m = QtWidgets.QVBoxLayout()
+        self.vsplit_r = QtWidgets.QVBoxLayout()
 
-        self.layout = QtWidgets.QVBoxLayout()
-        self.layout.addWidget(self.hsplit)
-        self.layout.addLayout(self.vsplit)
+        self.layout = QtWidgets.QHBoxLayout()
+        self.layout.addLayout(self.vsplit_m)
+        self.layout.addLayout(self.vsplit_r)
 
         self.window.setLayout(self.layout)
 
 
-class Console(QtWidgets.QWidget):
-
+class PTPanel(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
-
         self.layout = QtWidgets.QVBoxLayout()
         self.setLayout(self.layout)
 
-        self.slider = PathTracker()
-        self.buttons = Buttons()
         self.pt = PTGroup(ParameterTree())
-
-        self.info = InfoPanel()
-
         self.layout.addWidget(self.pt.tree)
-        self.layout.addWidget(self.buttons)
-        self.layout.addWidget(self.slider)
 
     def register_option(self, name):
         opt = self.pt.register_option(name)
@@ -72,27 +64,37 @@ class Console(QtWidgets.QWidget):
         ret_val = self.pt.register_value(name, val)
         return ret_val
 
-    def register_function(self, name, func, defaults):
-        ret_func = self.pt.register_function(name, func, defaults)
+    def register_function(self, name, func):
+        ret_func = self.pt.register_function(name, func)
         return ret_func
 
 
-class InfoPanel(QtWidgets.QWidget):
+class Console(PTPanel):
 
     def __init__(self):
         super().__init__()
-        self.layout = QtWidgets.QHBoxLayout()
+
+        self.slider = PathTracker()
+        self.buttons = Buttons()
+
+        self.layout.addWidget(self.buttons)
+        self.layout.addWidget(self.slider)
+
+
+class InfoPanel(PTPanel):
+
+    def __init__(self):
+        super().__init__()
+        self.layout = QtWidgets.QVBoxLayout()
         self.setLayout(self.layout)
 
-        self.pt = PTGroup(ParameterTree())
         self.opts = self.pt.register_option("Function Info")
-        self.layout.addWidget(self.pt.tree)
 
     def addWidget(self, widget):
         self.layout.addWidget(widget)
 
     def register_function(self, name, func):
-        self.opts.register_value(name, PTStatic(func.func.__doc__))
+        self.opts.register_value(name, PTStatic(func.__doc__))
 
 
 class TerrainGraph(QtWidgets.QWidget):
@@ -100,7 +102,7 @@ class TerrainGraph(QtWidgets.QWidget):
         super().__init__()
         self.frame = QtWidgets.QFrame()
         self.layout = QtWidgets.QHBoxLayout()
-        self.setFixedSize(700, 500)
+        self.setFixedSize(850, 550)
         self.setLayout(self.layout)
         self.widget = None
 

@@ -1,43 +1,38 @@
+import os
 import sys
+import tempfile
+
+import numpy as np
+from PIL import Image
+from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
+
 from qt.app import TerrainApp
 from qt.tracks import circle_track
-import numpy as np
-import tempfile
-from PIL import Image
+from qt.tree import PTStatic
+from terrain.generation.fractal import generate_fractal_noise
+from terrain.generation.noise import (
+    generate_perlin_noise,
+    generate_ridge_noise,
+    generate_simplex_noise,
+)
 from terrain.style_transfer.neural_style import apply_neural_style
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
-from PyQt6.QtWidgets import QLabel, QProgressBar, QWidget, QVBoxLayout, QHBoxLayout
-from PyQt6.QtGui import QPixmap
-from terrain.generation.fractal_perlin import generate_fractal_perlin_noise
-from terrain.generation.perlin import generate_perlin_noise
 from terrain.visualization.pyvista_vis import (
     generate_tree_density,
     plot_terrain,
     visualize_terrain_with_trees,
 )
 
-noise_functions = {
-    "Perlin": generate_perlin_noise,
-    "Fractal-Perlin": generate_fractal_perlin_noise,
-}
 
-noise_defaults = {
-    "Perlin": {
-        "Shape": (100, 100),
-        "Scale": 10,
-        "Offset": (0.0, 0.0),
-        "Zoom": 1.0,
-    },
-    "Fractal-Perlin": {
-        "Shape": (100, 100),
-        "Scale": 10,
-        "Octaves": 4,
-        "Persistence": 0.5,
-        "Lacunarity": 2.0,
-        "Offset": (0.0, 0.0),
-        "Zoom": 1.0,
-    },
-}
+def get_image_files(directory):
+    image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp"}
+    return [
+        f
+        for f in os.listdir(directory)
+        if os.path.isfile(os.path.join(directory, f))
+        and os.path.splitext(f)[1].lower() in image_extensions
+    ]
 
 
 class StyleWorker(QObject):
@@ -45,7 +40,16 @@ class StyleWorker(QObject):
     result_ready = pyqtSignal(object)
     progress = pyqtSignal(int)
 
-    def __init__(self, img_path, style_path, height_scale, num_steps, style_weight, content_weight, tv_weight):
+    def __init__(
+        self,
+        img_path,
+        style_path,
+        height_scale,
+        num_steps,
+        style_weight,
+        content_weight,
+        tv_weight,
+    ):
         super().__init__()
         self.img_path = img_path
         self.style_path = style_path
@@ -75,59 +79,83 @@ class StyleWorker(QObject):
 def get_update_plotter(app):
     plotter = app.core.display.get_plotter()
     console = app.console
+    ipanel = app.ipanel
 
     # Function to update the plotter when the user pushes the update button
     def update_plotter():
         plotter.clear()
-        # Start registering functions to the tree
-        #
-        # Although this function is called mutliple times, results are cached
-        # so we don't need to worry about duplicates
 
-        # A PTOption type is returned. Use this to append values/functions to
-        # the tree such that one of which will be active at a time.
-        opt = console.register_option("Noise")
+        # Start registering functions to the tree
+        noise_opt = console.register_option("Noise")
+        noise_functions = {
+            "Perlin": generate_perlin_noise,
+            "Simplex": generate_simplex_noise,
+            "Ridge": generate_ridge_noise,
+        }
+
         for noise in noise_functions:
-            func = opt.register_function(
-                noise, noise_functions[noise], noise_defaults[noise]
-            )
+            noisef = noise_functions[noise]
+            noise_opt.register_function(noise, noisef)
 
             # Register a function to the info panel to view its docstring
-            console.info.register_function(noise, func)
-        generate_noise = opt.get_active_option()
+            ipanel.register_function(noise, noisef)
 
-        # A register_value or register_function call to a PTOption/PTGroup/console
-        # will return an object that allows state updates
-        #
-        # To get the value, use PTValue.value
-        # For functions, you can call them like normal, but default arguments
-        # passed in are automatically registered by the PTCallable class.
+        ipanel.register_function("Fractal Noise", generate_fractal_noise)
+        generate_noise = noise_opt.get_active_option()
+
+        # Fractal noise params
+        is_fractal_enabled = console.register_value("Fractal", False)
+        generate_fractal = console.register_function(
+            "Fractal Noise", generate_fractal_noise
+        )
+
+        # General params
         height_scale = console.register_value("Height Scale", 10)
         is_tree_enabled = console.register_value("Trees Enabled", False)
-        is_style_transfer_enabled = console.register_value("Style Transfer", False)
 
         # Style transfer params
-        content_path_val = console.register_value("Content Path", "noises/perlin3.png")
-        style_path_val = console.register_value("Style Path", "real-world/himalaya.jpg")
+        is_style_transfer_enabled = console.register_value("Style Transfer", False)
+
+        content_dir = "noises"
+        content_opt = console.register_option("Content Path")
+        content_opt.register_value("", "", show=False)
+        for path in [f"{content_dir}/{file}" for file in get_image_files(content_dir)]:
+            content_opt.register_value(path, PTStatic(path), show=False)
+
+        style_dir = "real-world"
+        style_opt = console.register_option("Style Path")
+        for path in [f"{style_dir}/{file}" for file in get_image_files(style_dir)]:
+            style_opt.register_value(path, PTStatic(path), show=False)
+
+        content_path_val = content_opt.get_active_option()
+        style_path_val = style_opt.get_active_option()
+
         iterations_val = console.register_value("Iterations", 2000)
         style_weight_val = console.register_value("Style Weight", 1e-5)
         content_weight_val = console.register_value("Noise Weight", 2.5e-11)
         tv_weight_val = console.register_value("Total Variation Weight", 1e-10)
 
-        noise = generate_noise()
+        noise = None
+        if is_fractal_enabled.value():
+            noise = generate_fractal(generate_noise)
+        else:
+            noise = generate_noise()
+
         tmpfile = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         norm = (noise + 1) / 2
         img = Image.fromarray(np.uint8(norm * 255))
         img.save(tmpfile.name)
-        if is_style_transfer_enabled.value:
-            if content_path_val.value == "":
+
+        terrain = None
+
+        if is_style_transfer_enabled.value():
+            if content_path_val.value() == "":
                 content_path = tmpfile.name
             else:
-                content_path = content_path_val.value
+                content_path = content_path_val.value()
             # insert preview & progress placeholders in graph area
             graph_widget = app.graph
-            plotter_widget = plotter.interactor
-            plotter_widget.hide()
+            plotter.hide()
             # prepare widgets
             content_lbl = QLabel()
             content_title = QLabel("Content")
@@ -139,7 +167,7 @@ def get_update_plotter(app):
             # load thumbnails
             pix = QPixmap(content_path).scaled(200, 200, Qt.KeepAspectRatio)
             content_lbl.setPixmap(pix)
-            pix2 = QPixmap(style_path_val.value).scaled(200, 200, Qt.KeepAspectRatio)
+            pix2 = QPixmap(style_path_val.value()).scaled(200, 200, Qt.KeepAspectRatio)
             style_lbl.setPixmap(pix2)
             # container layout:
             placeholder = QWidget()
@@ -178,34 +206,40 @@ def get_update_plotter(app):
             graph_widget._placeholders = [placeholder]
 
             worker = StyleWorker(
-                content_path, style_path_val.value, height_scale.value,
-                iterations_val.value, style_weight_val.value,
-                content_weight_val.value, tv_weight_val.value
+                content_path,
+                style_path_val.value(),
+                height_scale.value(),
+                iterations_val.value(),
+                style_weight_val.value(),
+                content_weight_val.value(),
+                tv_weight_val.value(),
             )
             worker.progress.connect(progress.setValue, Qt.QueuedConnection)
+
             # on style result: remove placeholders, restore plotter and render
-            def handle_style_result(terrain):
+            def handle_style_result(terrain_map):
                 # remove placeholder container
                 ph = graph_widget._placeholders[0]
                 graph_widget.layout.removeWidget(ph)
                 ph.deleteLater()
-                plotter_widget.show()
-                plot_terrain(plotter, terrain, show=False)
+                plotter.show()
+                plot_terrain(plotter, terrain_map, show=False)
+
             worker.result_ready.connect(handle_style_result, Qt.QueuedConnection)
             thread = QThread()
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
             worker.finished.connect(thread.quit)
-            console._worker = worker; console._thread = thread
+            console._worker = worker
+            console._thread = thread
             thread.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
             thread.start()
         else:
-            terrain = noise * height_scale.value
+            terrain = noise * height_scale.value()
             plot_terrain(plotter, terrain, show=False)
 
-        # Example of using the registered value
-        if is_tree_enabled.value:
+        if is_tree_enabled.value():
             tree_density = generate_tree_density(terrain, len(terrain))
 
             visualize_terrain_with_trees(

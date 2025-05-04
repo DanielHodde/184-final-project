@@ -1,9 +1,10 @@
+import os
+
 import numpy as np
-from PIL import Image
 import tensorflow as tf
+from PIL import Image
 from tensorflow import keras
 from tensorflow.keras.applications import vgg19
-import os
 
 
 def load_image(img_path, target_shape):
@@ -36,7 +37,7 @@ def style_loss(style, combination, img_nrows, img_ncols):
     C = gram_matrix(combination)
     channels = 3
     size = img_nrows * img_ncols
-    return tf.reduce_sum(tf.square(S - C)) / (4.0 * (channels ** 2) * (size ** 2))
+    return tf.reduce_sum(tf.square(S - C)) / (4.0 * (channels**2) * (size**2))
 
 
 def content_loss(base, combination):
@@ -53,7 +54,19 @@ def total_variation_loss(x, img_nrows, img_ncols):
     return tf.reduce_sum(tf.pow(a + b, 1.25))
 
 
-def compute_loss(combination_image, base_image, style_reference_image, feature_extractor, content_layer_name, style_layer_names, content_weight, style_weight, tv_weight, img_nrows, img_ncols):
+def compute_loss(
+    combination_image,
+    base_image,
+    style_reference_image,
+    feature_extractor,
+    content_layer_name,
+    style_layer_names,
+    content_weight,
+    style_weight,
+    tv_weight,
+    img_nrows,
+    img_ncols,
+):
     input_tensor = tf.concat(
         [base_image, style_reference_image, combination_image], axis=0
     )
@@ -73,25 +86,59 @@ def compute_loss(combination_image, base_image, style_reference_image, feature_e
         layer_features = features[layer_name]
         style_reference_features = layer_features[1, :, :, :]
         combination_features = layer_features[2, :, :, :]
-        sl = style_loss(style_reference_features, combination_features, img_nrows, img_ncols)
+        sl = style_loss(
+            style_reference_features, combination_features, img_nrows, img_ncols
+        )
         loss += (style_weight / len(style_layer_names)) * sl
 
     # Total variation loss
     loss += tv_weight * total_variation_loss(combination_image, img_nrows, img_ncols)
     return loss
 
+
 @tf.function
-def compute_loss_and_grads(combination_image, base_image, style_reference_image, feature_extractor, content_layer_name, style_layer_names, content_weight, style_weight, tv_weight, img_nrows, img_ncols):
+def compute_loss_and_grads(
+    combination_image,
+    base_image,
+    style_reference_image,
+    feature_extractor,
+    content_layer_name,
+    style_layer_names,
+    content_weight,
+    style_weight,
+    tv_weight,
+    img_nrows,
+    img_ncols,
+):
     with tf.GradientTape() as tape:
         loss = compute_loss(
-            combination_image, base_image, style_reference_image, feature_extractor,
-            content_layer_name, style_layer_names, content_weight, style_weight, tv_weight, img_nrows, img_ncols
+            combination_image,
+            base_image,
+            style_reference_image,
+            feature_extractor,
+            content_layer_name,
+            style_layer_names,
+            content_weight,
+            style_weight,
+            tv_weight,
+            img_nrows,
+            img_ncols,
         )
     grads = tape.gradient(loss, combination_image)
     return loss, grads
 
 
-def apply_neural_style(content_path, style_path, num_steps=2000, style_weight=1e-5, content_weight=2.5e-11, tv_weight=1e-10, img_nrows=512, result_prefix="outputs/transferred_morphology", progress_callback=None):
+def apply_neural_style(
+    content_path,
+    style_path,
+    num_steps=2000,
+    style_weight=1e-5,
+    content_weight=2.5e-11,
+    tv_weight=1e-10,
+    img_nrows=512,
+    result_prefix="outputs/transferred_morphology",
+    progress_callback=None,
+):
     """
     Apply neural style transfer to a procedural terrain map using a real-world heightmap as style, using TensorFlow/Keras VGG-19.
     Args:
@@ -106,7 +153,7 @@ def apply_neural_style(content_path, style_path, num_steps=2000, style_weight=1e
     Returns:
         Stylized terrain as np.ndarray
     """
-    # Preprocess images    
+    # Preprocess images
 
     width, height = keras.preprocessing.image.load_img(content_path).size
     img_ncols = width * img_nrows // height
@@ -128,7 +175,7 @@ def apply_neural_style(content_path, style_path, num_steps=2000, style_weight=1e
         "block2_conv1",
         "block3_conv1",
         "block4_conv1",
-        "block5_conv1"
+        "block5_conv1",
     ]
     content_layer_name = "block5_conv2"
 
@@ -141,8 +188,17 @@ def apply_neural_style(content_path, style_path, num_steps=2000, style_weight=1e
 
     for i in range(1, num_steps + 1):
         loss, grads = compute_loss_and_grads(
-            combination_image, base_image, style_reference_image, feature_extractor,
-            content_layer_name, style_layer_names, content_weight, style_weight, tv_weight, img_nrows, img_ncols
+            combination_image,
+            base_image,
+            style_reference_image,
+            feature_extractor,
+            content_layer_name,
+            style_layer_names,
+            content_weight,
+            style_weight,
+            tv_weight,
+            img_nrows,
+            img_ncols,
         )
         optimizer.apply_gradients([(grads, combination_image)])
 

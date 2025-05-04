@@ -4,10 +4,9 @@ Fractal Perlin noise terrain generation implementation.
 
 import numpy as np
 
-from .perlin import generate_perlin_noise
 
-
-def generate_fractal_perlin_noise(
+def generate_fractal_noise(
+    noisef,
     shape=(100, 100),
     scale=10,
     octaves=4,
@@ -37,7 +36,7 @@ def generate_fractal_perlin_noise(
         # Offset is scaled by frequency to allow zooming/panning
         octave_offset = (offset[0] * frequency, offset[1] * frequency)
         octave_scale = (scale * frequency) / zoom
-        noise += amplitude * generate_perlin_noise(
+        noise += amplitude * noisef(
             shape=shape, scale=octave_scale, offset=octave_offset
         )
         max_amplitude += amplitude
