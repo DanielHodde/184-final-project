@@ -79,8 +79,7 @@ class StyleWorker(QObject):
         )
         terrain_arr = np.mean(styled, axis=2) / 255.0
         terrain_arr = 2 * terrain_arr - 1
-        terrain = terrain_arr * self.height_scale
-        self.result_ready.emit(terrain)
+        self.result_ready.emit(terrain_arr)
         self.finished.emit()
 
 
@@ -158,9 +157,6 @@ def get_update_plotter(app):
         else:
             x, y = d_warp()
             noise = generate_noise(x, y)
-
-        if is_erosion_enabled.value():
-            noise = apply_erosion(noise)
 
         size = noise.shape
 
@@ -244,7 +240,12 @@ def get_update_plotter(app):
                 graph_widget.layout.removeWidget(ph)
                 ph.deleteLater()
                 plotter.show()
+
                 terrain_map = downsample_to_size(terrain_map, size)
+                if is_erosion_enabled.value():
+                    terrain_map = apply_erosion(terrain_map)
+
+                terrain_map *= height_scale.value()
                 plot_terrain(plotter, terrain_map, show=False)
                 if is_tree_enabled.value():
                     tree_density = generate_tree_density(terrain_map, len(terrain_map))
@@ -266,7 +267,11 @@ def get_update_plotter(app):
             thread.finished.connect(thread.deleteLater)
             thread.start()
         else:
-            terrain = noise * height_scale.value()
+            terrain = noise
+            if is_erosion_enabled.value():
+                terrain = apply_erosion(terrain)
+
+            terrain = terrain * height_scale.value()
             plot_terrain(plotter, terrain, show=False)
 
             if is_tree_enabled.value():
