@@ -12,9 +12,9 @@ def domain_warp(
     scale=10,
     offset=(0.0, 0.0),
     zoom=1.0,
-    strength=0.5,
+    strength=0.6,
     falloff=0.5,
-    warps=4,
+    warps=0,
 ):
     """
     Perform domain warping on a 2D coordinate grid with multiple iterations.
@@ -40,11 +40,11 @@ def domain_warp(
 
     # Apply domain warping for warps iterations
     for i in range(warps):
-        warp_noise_x = generate_perlin_noise(
-            x, y, scale=scale * 0.5, offset=offset, zoom=zoom
+        warp_noise_x = generate_fractal_perlin_noise(
+            shape=shape, scale=scale, offset=offset, zoom=zoom
         )
-        warp_noise_y = generate_simplex_noise(
-            x, y, scale=scale * 0.5, offset=offset, zoom=zoom
+        warp_noise_y = generate_fractal_perlin_noise(
+            shape=shape, scale=scale, offset=offset, zoom=zoom
         )
 
         warp_noise_x = (warp_noise_x + 1) / 2 - 0.5
@@ -217,4 +217,75 @@ def generate_ridge_noise(x, y, scale=6, offset=(0.0, 0.0), zoom=1.0, p=1.0):
     noise = generate_perlin_noise(x, y, scale, offset, zoom)
     noise = np.power(1 - np.abs(noise), p)
 
-    return noise - 0.5
+    return noise - (np.max(noise) - np.min(noise)) / 2
+
+
+def generate_billow_noise(x, y, scale=6, offset=(0.0, 0.0), zoom=1.0, p=1.7):
+    """
+    Generate a 2D Billow noise array.
+
+    Args:
+        shape (tuple): Output shape of the noise array (height, width).
+        scale (float): Base scale (frequency) of the noise pattern.
+        offset (tuple): (x, y) offset to shift the sampled region.
+        zoom (float): Zoom factor; >1 zooms in, <1 zooms out.
+        p (float): Exponent factor to adjust the softness of peaks.
+    Returns:
+        np.ndarray: 2D array of Billow noise values normalized to the range [-1, 1].
+    """
+    # Generate Perlin noise
+    noise = generate_perlin_noise(x, y, scale)
+
+    # Apply Billow transformation
+    billow_noise = np.abs(noise) ** p
+
+    return billow_noise
+
+
+def generate_fractal_perlin_noise(
+    shape=(100, 100),
+    scale=10,
+    octaves=4,
+    persistence=0.5,
+    lacunarity=2.0,
+    offset=(0.0, 0.0),
+    zoom=1.0,
+):
+    """
+    Generate a 2D fractal (FBM) Perlin noise array by summing multiple octaves.
+    Args:
+        shape (tuple): Output shape (height, width).
+        scale (float): Base scale (frequency) of the first octave.
+        octaves (int): Number of noise layers to sum.
+        persistence (float): Amplitude multiplier for each octave.
+        lacunarity (float): Frequency multiplier for each octave.
+        offset (tuple): (x, y) offset to shift the sampled region (applied to all octaves, scaled by frequency).
+        zoom (float): Zoom factor; >1 zooms in, <1 zooms out.
+    Returns:
+        np.ndarray: 2D array of fractal Perlin noise values in range [-1, 1].
+    """
+    w, h = shape
+    # Initialize coordinates
+    lin_x = np.linspace(0, scale / zoom, w, endpoint=False) + offset[0]
+    lin_y = np.linspace(0, scale / zoom, h, endpoint=False) + offset[1]
+    x, y = np.meshgrid(lin_x, lin_y)
+
+    noise = np.zeros(shape, dtype=np.float32)
+    amplitude = 1.0
+    frequency = 1.0
+    max_amplitude = 0.0
+
+    for _ in range(octaves):
+        # Offset is scaled by frequency to allow zooming/panning
+        octave_offset = (offset[0] * frequency, offset[1] * frequency)
+        octave_scale = (scale * frequency) / zoom
+
+        noise += amplitude * generate_perlin_noise(
+            x, y, scale=octave_scale, offset=octave_offset
+        )
+
+        max_amplitude += amplitude
+        amplitude *= persistence
+        frequency *= lacunarity
+    noise /= max_amplitude
+    return noise

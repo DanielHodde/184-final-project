@@ -42,7 +42,9 @@ def generate_fractal_noise(
         octave_scale = (scale * frequency) / zoom
 
         x, y = domain_warp(scale=octave_scale, offset=octave_offset)
-        noise += amplitude * noisef(x, y, scale=octave_scale, offset=octave_offset)
+        cur_noise = noisef(x, y, scale=octave_scale, offset=octave_offset)
+
+        noise += amplitude * cur_noise
 
         max_amplitude += amplitude
         amplitude *= persistence

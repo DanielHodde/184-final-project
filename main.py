@@ -12,9 +12,11 @@ from skimage.transform import resize
 from qt.app import TerrainApp
 from qt.tracks import circle_track
 from qt.tree import PTStatic
+from terrain.generation.erosion import add_erosion
 from terrain.generation.fractal import generate_fractal_noise
 from terrain.generation.noise import (
     domain_warp,
+    generate_billow_noise,
     generate_perlin_noise,
     generate_ridge_noise,
     generate_simplex_noise,
@@ -98,6 +100,7 @@ def get_update_plotter(app):
             "Perlin": generate_perlin_noise,
             "Simplex": generate_simplex_noise,
             "Ridge": generate_ridge_noise,
+            "Billow": generate_billow_noise,
         }
 
         for noise in noise_functions:
@@ -118,6 +121,10 @@ def get_update_plotter(app):
         generate_fractal = lpanel.register_function(
             "Fractal Noise", generate_fractal_noise
         )
+
+        # Erosion
+        is_erosion_enabled = lpanel.register_value("Erosion", False)
+        apply_erosion = lpanel.register_function("Erosion Function", add_erosion)
 
         # General params
         height_scale = lpanel.register_value("Height Scale", 10)
@@ -151,6 +158,9 @@ def get_update_plotter(app):
         else:
             x, y = d_warp()
             noise = generate_noise(x, y)
+
+        if is_erosion_enabled.value():
+            noise = apply_erosion(noise)
 
         size = noise.shape
 

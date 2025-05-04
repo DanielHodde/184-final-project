@@ -86,6 +86,7 @@ class Camera:
     def set_plotter(self, plotter):
         self.plotter = plotter
         self.base_position = self.plotter.camera_position
+        self.focal_point = self.base_position[1]
 
     def connect(self, slider, buttons):
         self.slider = slider
@@ -122,6 +123,20 @@ class Camera:
         self.clen = np.cumsum(path_lengths)
         self.slider.track_path(path)
 
+        view_dir = np.array(path) - self.focal_point
+        view_dir /= np.linalg.norm(view_dir, axis=1, keepdims=True)
+
+        rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 0]])
+        xy_dir = np.dot(view_dir, rot.T)
+
+        norms = np.linalg.norm(xy_dir, axis=1)
+        xy_dir[norms == 0] = np.array([1, 0, 0])
+        xy_dir /= np.linalg.norm(xy_dir, axis=1, keepdims=True)
+
+        view_up = np.cross(view_dir, xy_dir)
+        view_up /= np.linalg.norm(view_up, axis=1, keepdims=True)
+        self.view_up = -view_up
+
     def reverse_path(self):
         self.track = self.track[::-1]
 
@@ -153,7 +168,11 @@ class Camera:
 
             c_pos = p * vec + start
 
+            viewup = self.view_up[iter] + p * (
+                self.view_up[iter + 1] - self.view_up[iter]
+            )
+            viewup = viewup / np.linalg.norm(viewup)
+
             new_position = (c_pos[0], c_pos[1], c_pos[2])
             self.plotter.set_position(new_position)
-
-            self.plotter.render()
+            self.plotter.set_viewup(viewup)
