@@ -3,6 +3,7 @@ import inspect
 import uuid
 
 from PyQt6 import QtWidgets
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit
 
 
@@ -57,6 +58,7 @@ class PTGroup:
             return self.cache[identifier]
 
         sub_tree = ParameterTree()
+        sub_tree.layout.setContentsMargins(0, 0, 0, 0)
         opt = PTOption(sub_tree)
 
         signal = sub_tree.push(dict(name=name, default=opt))
@@ -87,6 +89,7 @@ class PTOption(PTGroup):
             return self.cache[identifier]
 
         gtree = ParameterTree()
+        gtree.layout.setContentsMargins(0, 0, 0, 0)
         group = PTGroup(gtree)
         ret_val = PTValue(val)
         if show:
@@ -107,6 +110,7 @@ class PTOption(PTGroup):
             return self.cache[identifier]
 
         gtree = ParameterTree()
+        gtree.layout.setContentsMargins(0, 0, 0, 0)
         group = PTGroup(gtree)
         ret_func = group.register_function(name, func)
 
@@ -236,8 +240,8 @@ class ParameterTree(QtWidgets.QWidget):
             signal = node.textChanged
 
         hb = QHBoxLayout()
-        hb.addWidget(label)
-        hb.addWidget(node)
+        hb.addWidget(label, alignment=Qt.AlignLeft)
+        hb.addWidget(node, alignment=Qt.AlignRight)
 
         self.layout.addLayout(hb)
 

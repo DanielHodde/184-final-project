@@ -6,7 +6,7 @@ fonttools==4.57.0
 idna==3.10
 kiwisolver==1.4.8
 matplotlib==3.10.1
-numpy==2.1.0
+numpy>=1.24.0,<2.0.0
 packaging==25.0
 pillow==11.2.1
 platformdirs==4.3.7

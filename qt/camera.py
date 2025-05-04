@@ -138,9 +138,6 @@ class Camera:
             c_pos = p * vec + start
 
             new_position = (c_pos[0], c_pos[1], c_pos[2])
-            old_camera = self.plotter.camera_position
-            focal_point = old_camera[1]
-            view_up = old_camera[2]
-            self.plotter.camera_position = [new_position, focal_point, view_up]
+            self.plotter.set_position(new_position)
 
             self.plotter.render()

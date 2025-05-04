@@ -157,11 +157,7 @@ def generate_simplex_noise(shape=(100, 100), scale=6, offset=(0.0, 0.0), zoom=1.
     t2 **= 4
     n2 *= t2
 
-    noise = n0 + n1 + n2
-    min_val = np.min(noise)
-    max_val = np.max(noise)
-    noise = 2 * ((noise - min_val) / (max_val - min_val)) - 1
-
+    noise = (n0 + n1 + n2) * 40
     return noise
 
 
@@ -181,8 +177,4 @@ def generate_ridge_noise(shape=(100, 100), scale=6, offset=(0.0, 0.0), zoom=1.0,
     noise = generate_perlin_noise(shape, scale, offset, zoom)
     noise = np.power(1 - np.abs(noise), p)
 
-    min_val = np.min(noise)
-    max_val = np.max(noise)
-    noise = 2 * ((noise - min_val) / (max_val - min_val)) - 1
-
-    return noise
+    return noise - 0.5
