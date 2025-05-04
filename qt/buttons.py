@@ -17,7 +17,6 @@ class PlayButton(QPushButton):
 
     def track(self, slider):
         self.tracked_slider = slider
-        slider.anim.finished.connect(self.toggle)
 
     def toggle(self):
         if self.play:

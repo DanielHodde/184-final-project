@@ -170,6 +170,7 @@ def visualize_terrain_with_trees(plotter, terrain, tree_density, tree_threshold=
     # If we have tree points, create geometry
     if len(tree_points) > 0:
         tree_meshes = []
+        point_scalars = []
         for pt, height, radius in zip(tree_points, tree_heights, tree_radii):
             cone = pv.Cone(
                 center=(pt[0], pt[1], pt[2] + height / 2),
@@ -179,10 +180,29 @@ def visualize_terrain_with_trees(plotter, terrain, tree_density, tree_threshold=
                 resolution=16,
             )
             tree_meshes.append(cone)
+            point_scalars.extend([pt[2] + height] * cone.n_points)
+
         all_trees = tree_meshes[0].copy()
         for mesh in tree_meshes[1:]:
             all_trees = all_trees.merge(mesh)
-        plotter.add_mesh(all_trees, color="#228B22")  # Forest Green
+
+        # point_scalars = -np.array(point_scalars)
+        # point_scalars = (point_scalars - np.min(point_scalars)) / (
+        #     np.max(point_scalars) - np.min(point_scalars)
+        # )
+
+        plotter.add_mesh(
+            all_trees,
+            scalars=point_scalars,
+            cmap="Greens",
+            show_scalar_bar=False,
+        )
+        # plotter.add_mesh(
+        #     all_trees,
+        #     scalars=point_scalars.ravel(),
+        #     cmap="Greens",
+        #     show_scalar_bar=False,
+        # )
 
 
 def add_trees_to_plotter(

@@ -159,8 +159,6 @@ def get_update_plotter(app):
         img = Image.fromarray(np.uint8(norm * 255))
         img.save(tmpfile.name)
 
-        terrain = None
-
         if is_style_transfer_enabled.value():
             if content_path_val.value() == "Custom":
                 content_path = tmpfile.name
@@ -238,6 +236,14 @@ def get_update_plotter(app):
                 plotter.show()
                 terrain_map = downsample_to_size(terrain_map, size)
                 plot_terrain(plotter, terrain_map, show=False)
+                if is_tree_enabled.value():
+                    tree_density = generate_tree_density(terrain_map, len(terrain_map))
+
+                    visualize_terrain_with_trees(
+                        plotter,
+                        terrain_map,
+                        tree_density,
+                    )
 
             worker.result_ready.connect(handle_style_result, Qt.QueuedConnection)
             thread = QThread()
@@ -253,14 +259,14 @@ def get_update_plotter(app):
             terrain = noise * height_scale.value()
             plot_terrain(plotter, terrain, show=False)
 
-        if is_tree_enabled.value():
-            tree_density = generate_tree_density(terrain, len(terrain))
+            if is_tree_enabled.value():
+                tree_density = generate_tree_density(terrain, len(terrain))
 
-            visualize_terrain_with_trees(
-                plotter,
-                terrain,
-                tree_density,
-            )
+                visualize_terrain_with_trees(
+                    plotter,
+                    terrain,
+                    tree_density,
+                )
 
         plotter.render()
 

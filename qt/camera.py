@@ -26,6 +26,15 @@ class PathTracker(QSlider):
         self.setMaximum(self.max)
         self.setOrientation(Qt.Orientation.Horizontal)
         self.anim = QPropertyAnimation(self, b"value")
+        self.anim.finished.connect(self.on_animation_finished)
+        self.loop_strategy = {
+            "Loop": self.loop,
+            "Reverse": self.reverse,
+        }
+        self.handle_loop = self.loop
+
+    def set_loop_strategy(self, strategy):
+        self.handle_loop = self.loop_strategy[strategy]
 
     def track_path(self, path):
         self.track = path
@@ -50,6 +59,9 @@ class PathTracker(QSlider):
         self.reversed = not self.reversed
         self.setSliderPosition(self.sliderPosition())
 
+    def loop(self):
+        self.setSliderPosition(self.start)
+
     def can_animate(self):
         return self.sliderPosition() != self.end
 
@@ -63,6 +75,10 @@ class PathTracker(QSlider):
             self.anim.setStartValue(self.sliderPosition())
             self.anim.setEndValue(self.end)
             self.anim.start()
+
+    def on_animation_finished(self):
+        self.handle_loop()
+        self.animate()
 
 
 class Camera:

@@ -95,7 +95,19 @@ class Console(PTPanel):
         spacer = QSpacerItem(300, 900, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.layout.addSpacerItem(spacer)
         self.layout.addWidget(self.buttons)
-        self.layout.addWidget(self.slider)
+
+        self.sliderbox = QtWidgets.QHBoxLayout()
+        self.sliderbox.addWidget(self.slider)
+        loop_choices = QtWidgets.QComboBox()
+        for strategy in self.slider.loop_strategy:
+            loop_choices.addItem(strategy)
+
+        signal = loop_choices.currentTextChanged
+        signal.connect(self.slider.set_loop_strategy)
+
+        self.sliderbox.addWidget(loop_choices)
+
+        self.layout.addLayout(self.sliderbox)
 
 
 class InfoPanel(PTPanel):
