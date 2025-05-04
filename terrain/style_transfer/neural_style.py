@@ -16,11 +16,10 @@ def load_image(img_path, target_shape):
 
 def tensor_to_image(x, target_shape):
     x = x.reshape((target_shape[0], target_shape[1], 3))
-    # Remove zero-center by mean pixel
     x[:, :, 0] += 103.939
     x[:, :, 1] += 116.779
     x[:, :, 2] += 123.68
-    x = x[:, :, ::-1]  # 'BGR'->'RGB'
+    x = x[:, :, ::-1]
     x = np.clip(x, 0, 255).astype("uint8")
     return x
 
@@ -60,6 +59,7 @@ def compute_loss(combination_image, base_image, style_reference_image, feature_e
     )
     features = feature_extractor(input_tensor)
     loss = tf.zeros(shape=())
+
     # Content loss
     layer_features = features[content_layer_name]
     base_image_features = layer_features[0, :, :, :]
@@ -67,6 +67,7 @@ def compute_loss(combination_image, base_image, style_reference_image, feature_e
     loss = loss + content_weight * content_loss(
         base_image_features, combination_features
     )
+
     # Style loss
     for layer_name in style_layer_names:
         layer_features = features[layer_name]
@@ -74,6 +75,7 @@ def compute_loss(combination_image, base_image, style_reference_image, feature_e
         combination_features = layer_features[2, :, :, :]
         sl = style_loss(style_reference_features, combination_features, img_nrows, img_ncols)
         loss += (style_weight / len(style_layer_names)) * sl
+
     # Total variation loss
     loss += tv_weight * total_variation_loss(combination_image, img_nrows, img_ncols)
     return loss
@@ -89,7 +91,7 @@ def compute_loss_and_grads(combination_image, base_image, style_reference_image,
     return loss, grads
 
 
-def apply_neural_style(content_path, style_path, num_steps=600, style_weight=1e-5, content_weight=2.5e-11, tv_weight=1e-10, img_nrows=256, result_prefix="outputs/transferred_morphology"):
+def apply_neural_style(content_path, style_path, num_steps=2000, style_weight=1e-5, content_weight=2.5e-11, tv_weight=1e-10, img_nrows=512, result_prefix="outputs/transferred_morphology", progress_callback=None):
     """
     Apply neural style transfer to a procedural terrain map using a real-world heightmap as style, using TensorFlow/Keras VGG-19.
     Args:
@@ -116,7 +118,7 @@ def apply_neural_style(content_path, style_path, num_steps=600, style_weight=1e-
     combination_image = tf.Variable(load_image(content_path, target_shape))
 
     # Build VGG19 model for feature extraction
-    model = vgg19.VGG19(weights="imagenet", include_top=False, input_shape=(img_nrows, img_ncols, 3))
+    model = vgg19.VGG19(weights="imagenet", include_top=False)
     outputs_dict = dict([(layer.name, layer.output) for layer in model.layers])
     feature_extractor = keras.Model(inputs=model.inputs, outputs=outputs_dict)
 
@@ -131,7 +133,7 @@ def apply_neural_style(content_path, style_path, num_steps=600, style_weight=1e-
     content_layer_name = "block5_conv2"
 
     # Optimizer
-    optimizer = keras.optimizers.SGD(
+    optimizer = keras.optimizers.legacy.SGD(
         keras.optimizers.schedules.ExponentialDecay(
             initial_learning_rate=150.0, decay_steps=100, decay_rate=0.96
         )
@@ -143,19 +145,8 @@ def apply_neural_style(content_path, style_path, num_steps=600, style_weight=1e-
             content_layer_name, style_layer_names, content_weight, style_weight, tv_weight, img_nrows, img_ncols
         )
         optimizer.apply_gradients([(grads, combination_image)])
-        if i % 200 == 0 or i == num_steps:
-            print(f"Iteration {i}: loss={loss:.2f}")
-            img = tensor_to_image(combination_image.numpy(), target_shape)
-            fname = f"{result_prefix}_at_iteration_{i}.png"
-            os.makedirs(os.path.dirname(fname), exist_ok=True)
-            keras.preprocessing.image.save_img(fname, img)
-    return tensor_to_image(combination_image, target_shape)
 
-# Example usage (uncomment for testing):
-if __name__ == "__main__":
-    content_path = "neural/experiment.png"
-    style_path = "neural/himalaya.jpg"
-    result = apply_neural_style(content_path, style_path)
-    Image.fromarray(result).show()
-
-
+        if progress_callback:
+            pct = int(i / num_steps * 100)
+            progress_callback(pct)
+    return tensor_to_image(combination_image.numpy(), target_shape)

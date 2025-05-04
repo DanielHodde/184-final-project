@@ -1,7 +1,13 @@
 import sys
-
 from qt.app import TerrainApp
 from qt.tracks import circle_track
+import numpy as np
+import tempfile
+from PIL import Image
+from terrain.style_transfer.neural_style import apply_neural_style
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
+from PyQt6.QtWidgets import QLabel, QProgressBar, QWidget, QVBoxLayout, QHBoxLayout
+from PyQt6.QtGui import QPixmap
 from terrain.generation.fractal_perlin import generate_fractal_perlin_noise
 from terrain.generation.perlin import generate_perlin_noise
 from terrain.visualization.pyvista_vis import (
@@ -34,6 +40,38 @@ noise_defaults = {
 }
 
 
+class StyleWorker(QObject):
+    finished = pyqtSignal()
+    result_ready = pyqtSignal(object)
+    progress = pyqtSignal(int)
+
+    def __init__(self, img_path, style_path, height_scale, num_steps, style_weight, content_weight, tv_weight):
+        super().__init__()
+        self.img_path = img_path
+        self.style_path = style_path
+        self.height_scale = height_scale
+        self.num_steps = num_steps
+        self.style_weight = style_weight
+        self.content_weight = content_weight
+        self.tv_weight = tv_weight
+
+    def run(self):
+        styled = apply_neural_style(
+            self.img_path,
+            self.style_path,
+            num_steps=self.num_steps,
+            style_weight=self.style_weight,
+            content_weight=self.content_weight,
+            tv_weight=self.tv_weight,
+            progress_callback=self.progress.emit,
+        )
+        terrain_arr = np.mean(styled, axis=2) / 255.0
+        terrain_arr = 2 * terrain_arr - 1
+        terrain = terrain_arr * self.height_scale
+        self.result_ready.emit(terrain)
+        self.finished.emit()
+
+
 def get_update_plotter(app):
     plotter = app.core.display.get_plotter()
     console = app.console
@@ -49,7 +87,6 @@ def get_update_plotter(app):
         # A PTOption type is returned. Use this to append values/functions to
         # the tree such that one of which will be active at a time.
         opt = console.register_option("Noise")
-
         for noise in noise_functions:
             func = opt.register_function(
                 noise, noise_functions[noise], noise_defaults[noise]
@@ -57,7 +94,6 @@ def get_update_plotter(app):
 
             # Register a function to the info panel to view its docstring
             console.info.register_function(noise, func)
-
         generate_noise = opt.get_active_option()
 
         # A register_value or register_function call to a PTOption/PTGroup/console
@@ -68,10 +104,105 @@ def get_update_plotter(app):
         # passed in are automatically registered by the PTCallable class.
         height_scale = console.register_value("Height Scale", 10)
         is_tree_enabled = console.register_value("Trees Enabled", False)
-        is_style_transfer_enabled = console.register_value("Style-Transfer", False)
+        is_style_transfer_enabled = console.register_value("Style Transfer", False)
 
-        terrain = generate_noise() * height_scale.value
-        plot_terrain(plotter, terrain, show=False)
+        # Style transfer params
+        content_path_val = console.register_value("Content Path", "noises/perlin3.png")
+        style_path_val = console.register_value("Style Path", "real-world/himalaya.jpg")
+        iterations_val = console.register_value("Iterations", 2000)
+        style_weight_val = console.register_value("Style Weight", 1e-5)
+        content_weight_val = console.register_value("Noise Weight", 2.5e-11)
+        tv_weight_val = console.register_value("Total Variation Weight", 1e-10)
+
+        noise = generate_noise()
+        tmpfile = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        norm = (noise + 1) / 2
+        img = Image.fromarray(np.uint8(norm * 255))
+        img.save(tmpfile.name)
+        if is_style_transfer_enabled.value:
+            if content_path_val.value == "":
+                content_path = tmpfile.name
+            else:
+                content_path = content_path_val.value
+            # insert preview & progress placeholders in graph area
+            graph_widget = app.graph
+            plotter_widget = plotter.interactor
+            plotter_widget.hide()
+            # prepare widgets
+            content_lbl = QLabel()
+            content_title = QLabel("Content")
+            style_lbl = QLabel()
+            style_title = QLabel("Style")
+            progress = QProgressBar()
+            progress.setRange(0, 100)
+            progress_title = QLabel("Progress")
+            # load thumbnails
+            pix = QPixmap(content_path).scaled(200, 200, Qt.KeepAspectRatio)
+            content_lbl.setPixmap(pix)
+            pix2 = QPixmap(style_path_val.value).scaled(200, 200, Qt.KeepAspectRatio)
+            style_lbl.setPixmap(pix2)
+            # container layout:
+            placeholder = QWidget()
+            ph_vlay = QVBoxLayout()
+            # top row: two images side by side
+            top_row = QHBoxLayout()
+            # content column
+            content_v = QVBoxLayout()
+            content_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            content_title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            content_v.addWidget(content_lbl)
+            content_v.addWidget(content_title)
+            content_v.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            # style column
+            style_v = QVBoxLayout()
+            style_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            style_title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            style_v.addWidget(style_lbl)
+            style_v.addWidget(style_title)
+            style_v.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            top_row.addLayout(content_v)
+            top_row.addLayout(style_v)
+            top_row.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            ph_vlay.addLayout(top_row)
+            # progress row
+            prog_v = QVBoxLayout()
+            progress.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            progress_title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            prog_v.addWidget(progress)
+            prog_v.addWidget(progress_title)
+            prog_v.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            ph_vlay.addLayout(prog_v)
+            ph_vlay.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            placeholder.setLayout(ph_vlay)
+            graph_widget.layout.addWidget(placeholder)
+            graph_widget._placeholders = [placeholder]
+
+            worker = StyleWorker(
+                content_path, style_path_val.value, height_scale.value,
+                iterations_val.value, style_weight_val.value,
+                content_weight_val.value, tv_weight_val.value
+            )
+            worker.progress.connect(progress.setValue, Qt.QueuedConnection)
+            # on style result: remove placeholders, restore plotter and render
+            def handle_style_result(terrain):
+                # remove placeholder container
+                ph = graph_widget._placeholders[0]
+                graph_widget.layout.removeWidget(ph)
+                ph.deleteLater()
+                plotter_widget.show()
+                plot_terrain(plotter, terrain, show=False)
+            worker.result_ready.connect(handle_style_result, Qt.QueuedConnection)
+            thread = QThread()
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.finished.connect(thread.quit)
+            console._worker = worker; console._thread = thread
+            thread.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            thread.start()
+        else:
+            terrain = noise * height_scale.value
+            plot_terrain(plotter, terrain, show=False)
 
         # Example of using the registered value
         if is_tree_enabled.value:
@@ -89,7 +220,6 @@ def get_update_plotter(app):
 
 
 def main():
-
     app = TerrainApp()
     app.get_view().track_path(circle_track([50, 50, 100], 200))
 
