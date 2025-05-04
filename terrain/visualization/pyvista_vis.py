@@ -20,30 +20,30 @@ def plot_terrain(plotter, terrain_array, show=True):
     xx, yy = np.meshgrid(x, y)
     zz = terrain_array.astype(np.float32)
     grid = pv.StructuredGrid(xx, yy, zz)
-    min_h, max_h = np.min(zz), np.max(zz)
-    thresholds = [
-        min_h,
-        min_h + 0.2 * (max_h - min_h),
-        min_h + 0.5 * (max_h - min_h),
-        min_h + 0.8 * (max_h - min_h),
-        max_h,
-    ]
-    color_map = [
-        "#4682B4",  # Water (Steel Blue)
-        "#228B22",  # Grass (Forest Green)
-        "#CD853F",  # Mountain (Peru)
-        "#FFFAFA",  # Snow (Snow White)
-    ]
-    terrain_type = np.zeros_like(zz, dtype=np.uint8)
-    terrain_type[zz < thresholds[1]] = 0
-    terrain_type[(zz >= thresholds[1]) & (zz < thresholds[2])] = 1
-    terrain_type[(zz >= thresholds[2]) & (zz < thresholds[3])] = 2
-    terrain_type[zz >= thresholds[3]] = 3
+    # min_h, max_h = np.min(zz), np.max(zz)
+    # thresholds = [
+    #     min_h,
+    #     min_h + 0.2 * (max_h - min_h),
+    #     min_h + 0.5 * (max_h - min_h),
+    #     min_h + 0.8 * (max_h - min_h),
+    #     max_h,
+    # ]
+    # color_map = [
+    #     "#4682B4",  # Water (Steel Blue)
+    #     "#228B22",  # Grass (Forest Green)
+    #     "#CD853F",  # Mountain (Peru)
+    #     "#FFFAFA",  # Snow (Snow White)
+    # ]
+    # terrain_type = np.zeros_like(zz, dtype=np.uint8)
+    # terrain_type[zz < thresholds[1]] = 0
+    # terrain_type[(zz >= thresholds[1]) & (zz < thresholds[2])] = 1
+    # terrain_type[(zz >= thresholds[2]) & (zz < thresholds[3])] = 2
+    # terrain_type[zz >= thresholds[3]] = 3
     plotter.add_mesh(
         grid,
-        scalars=terrain_type.ravel(order="F"),
+        scalars=terrain_array.ravel(order="F"),
         show_edges=False,
-        cmap=color_map,
+        cmap="terrain",
     )
     if show:
         plotter.show()
@@ -82,15 +82,15 @@ def generate_tree_density(terrain, size=128):
 
 def visualize_terrain_with_trees(plotter, terrain, tree_density, tree_threshold=0.7):
     """Create a PyVista visualization of terrain with trees"""
-    size = terrain.shape[0]
+    # size = terrain.shape[0]
 
-    # Create coordinate grid
-    x = np.arange(size)
-    y = np.arange(size)
-    xx, yy = np.meshgrid(x, y)
-
-    # Create structured grid for the terrain
-    grid = pv.StructuredGrid(xx, yy, terrain)
+    # # Create coordinate grid
+    # x = np.arange(size)
+    # y = np.arange(size)
+    # xx, yy = np.meshgrid(x, y)
+    #
+    # # Create structured grid for the terrain
+    # grid = pv.StructuredGrid(xx, yy, terrain)
 
     # Define terrain colors based on elevation
     min_h, max_h = float(np.min(terrain)), float(np.max(terrain))
@@ -102,20 +102,20 @@ def visualize_terrain_with_trees(plotter, terrain, tree_density, tree_threshold=
         float(max_h),
     ]
 
-    # Create terrain type classification
-    terrain_type = np.zeros_like(terrain, dtype=np.uint8)
-    terrain_type[terrain < thresholds[1]] = 0  # Water
-    terrain_type[(terrain >= thresholds[1]) & (terrain < thresholds[2])] = 1  # Grass
-    terrain_type[(terrain >= thresholds[2]) & (terrain < thresholds[3])] = 2  # Mountain
-    terrain_type[terrain >= thresholds[3]] = 3  # Snow
-
-    # Color map for terrain types
-    color_map = [
-        "#1E90FF",  # Water (Dodger Blue)
-        "#228B22",  # Grass (Forest Green)
-        "#8B4513",  # Mountain (Saddle Brown)
-        "#FFFAFA",  # Snow (Snow White)
-    ]
+    # # Create terrain type classification
+    # terrain_type = np.zeros_like(terrain, dtype=np.uint8)
+    # terrain_type[terrain < thresholds[1]] = 0  # Water
+    # terrain_type[(terrain >= thresholds[1]) & (terrain < thresholds[2])] = 1  # Grass
+    # terrain_type[(terrain >= thresholds[2]) & (terrain < thresholds[3])] = 2  # Mountain
+    # terrain_type[terrain >= thresholds[3]] = 3  # Snow
+    #
+    # # Color map for terrain types
+    # color_map = [
+    #     "#1E90FF",  # Water (Dodger Blue)
+    #     "#228B22",  # Grass (Forest Green)
+    #     "#8B4513",  # Mountain (Saddle Brown)
+    #     "#FFFAFA",  # Snow (Snow White)
+    # ]
 
     # --- Option 1: Color by terrain type (default) ---
     # plotter.add_mesh(
@@ -126,12 +126,13 @@ def visualize_terrain_with_trees(plotter, terrain, tree_density, tree_threshold=
     # )
 
     # --- Option 2: Color by elevation (uncomment to use) ---
-    plotter.add_mesh(
-        grid,
-        scalars=terrain.ravel(order="F"),
-        show_edges=False,
-        cmap="terrain",
-    )
+    # Add the surface mesh with flipped normals
+    # plotter.add_mesh(
+    #     grid,
+    #     scalars=terrain.ravel(),
+    #     show_edges=False,
+    #     cmap="terrain",
+    # )
 
     # Add trees as instanced geometry with sparse sampling
     sparse_factor = 4  # Only place trees on every 4th point (adjust as needed)

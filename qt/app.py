@@ -1,5 +1,5 @@
 from PyQt6 import QtWidgets
-from PyQt6.QtWidgets import QApplication, QMainWindow
+from PyQt6.QtWidgets import QApplication, QMainWindow, QSizePolicy, QSpacerItem
 from pyvistaqt import QtInteractor
 
 from .buttons import Buttons
@@ -16,10 +16,12 @@ class TerrainApp(QApplication):
         self.graph = TerrainGraph()
         self.ipanel = InfoPanel()
         self.console = Console()
+        self.lpanel = PTPanel()
 
         self.core = TCore(self.console, self.graph)
 
         self.window = self.main_window.window
+        self.main_window.vsplit_l.addWidget(self.lpanel)
         self.main_window.vsplit_m.addWidget(self.graph)
         self.main_window.vsplit_m.addWidget(self.ipanel)
         self.main_window.vsplit_r.addWidget(self.console)
@@ -30,6 +32,17 @@ class TerrainApp(QApplication):
         return self.core.camera
 
 
+class CompactVBox(QtWidgets.QVBoxLayout):
+    def __init__(self):
+        super().__init__()
+        self.addStretch()
+
+    def addWidget(self, widget):
+        self.takeAt(self.count() - 1)
+        super().addWidget(widget)
+        self.addStretch()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -37,12 +50,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Procedural Terrain Generation")
         self.setCentralWidget(self.window)
 
-        self.vsplit_m = QtWidgets.QVBoxLayout()
-        self.vsplit_r = QtWidgets.QVBoxLayout()
+        self.vsplit_l = CompactVBox()
+        self.vsplit_m = CompactVBox()
+        self.vsplit_r = CompactVBox()
+        splits = [self.vsplit_l, self.vsplit_m, self.vsplit_r]
 
         self.layout = QtWidgets.QHBoxLayout()
-        self.layout.addLayout(self.vsplit_m)
-        self.layout.addLayout(self.vsplit_r)
+        for split in splits:
+            self.layout.addLayout(split)
 
         self.window.setLayout(self.layout)
 
@@ -60,12 +75,12 @@ class PTPanel(QtWidgets.QWidget):
         opt = self.pt.register_option(name)
         return opt
 
-    def register_value(self, name, val):
-        ret_val = self.pt.register_value(name, val)
+    def register_value(self, name, val, show=True):
+        ret_val = self.pt.register_value(name, val, show=show)
         return ret_val
 
-    def register_function(self, name, func):
-        ret_func = self.pt.register_function(name, func)
+    def register_function(self, name, func, show=True):
+        ret_func = self.pt.register_function(name, func, show=show)
         return ret_func
 
 
@@ -77,6 +92,8 @@ class Console(PTPanel):
         self.slider = PathTracker()
         self.buttons = Buttons()
 
+        spacer = QSpacerItem(300, 900, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.layout.addSpacerItem(spacer)
         self.layout.addWidget(self.buttons)
         self.layout.addWidget(self.slider)
 
@@ -85,16 +102,14 @@ class InfoPanel(PTPanel):
 
     def __init__(self):
         super().__init__()
-        self.layout = QtWidgets.QVBoxLayout()
-        self.setLayout(self.layout)
 
         self.opts = self.pt.register_option("Function Info")
 
     def addWidget(self, widget):
         self.layout.addWidget(widget)
 
-    def register_function(self, name, func):
-        self.opts.register_value(name, PTStatic(func.__doc__))
+    def register_function(self, name, func, show=True):
+        self.opts.register_value(name, PTStatic(func.__doc__), show=show)
 
 
 class TerrainGraph(QtWidgets.QWidget):

@@ -17,14 +17,14 @@ class PTGroup:
         self.tree = tree
         self.cache = {}
 
-    def register_value(self, name, val):
+    def register_value(self, name, val, show=True):
         identifier = f"{name}_{self.tree.id}"
         if identifier in self.cache:
             return self.cache[identifier]
 
         entry = dict(name=name, default=val)
 
-        signal = self.tree.push(entry)
+        signal = self.tree.push(entry, show=show)
         ret_val = PTValue(val)
         if signal:
             signal.connect(ret_val.set_value)
@@ -32,7 +32,7 @@ class PTGroup:
         self.cache[identifier] = ret_val
         return ret_val
 
-    def register_function(self, name, func):
+    def register_function(self, name, func, show=True):
         identifier = f"{name}_{self.tree.id}"
         if identifier in self.cache:
             return self.cache[identifier]
@@ -44,7 +44,8 @@ class PTGroup:
             ct = ParameterTree()
             self.tree.layout.addWidget(ct)
 
-            signal = ct.push(dict(name=key, default=defaults[key].value()))
+            entry = dict(name=key, default=defaults[key].value())
+            signal = ct.push(entry, show=show)
             arg = ret_func.defaults[key]
             if signal:
                 signal.connect(arg.set_value)
@@ -74,6 +75,9 @@ class PTGroup:
 class PTOption(PTGroup):
     """
     An option object used to attach either functions or values, one of which can be active at a time.
+
+    NOTE: Weird things can happen if you pass in unknown values for options.
+    Can error on strings sometimes, it is recommended to pass a PTStatic value.
     """
 
     def __init__(self, tree):
@@ -91,9 +95,8 @@ class PTOption(PTGroup):
         gtree = ParameterTree()
         gtree.layout.setContentsMargins(0, 0, 0, 0)
         group = PTGroup(gtree)
-        ret_val = PTValue(val)
-        if show:
-            ret_val = group.register_value(name, val)
+        ret_val = group.register_value(name, val, show=show)
+
         self.widgets.append(gtree)
         self.tree.layout.addWidget(gtree)
         self.options.addItem(name, ret_val)
@@ -104,7 +107,7 @@ class PTOption(PTGroup):
         self.cache[identifier] = ret_val
         return ret_val
 
-    def register_function(self, name, func):
+    def register_function(self, name, func, show=True):
         identifier = f"{name}_{self.tree.id}"
         if identifier in self.cache:
             return self.cache[identifier]
@@ -112,13 +115,13 @@ class PTOption(PTGroup):
         gtree = ParameterTree()
         gtree.layout.setContentsMargins(0, 0, 0, 0)
         group = PTGroup(gtree)
-        ret_func = group.register_function(name, func)
+        ret_func = group.register_function(name, func, show=show)
 
         self.widgets.append(gtree)
         self.tree.layout.addWidget(gtree)
         self.options.addItem(name, ret_func)
 
-        if self.idx.value != len(self.widgets) - 1:
+        if self.idx.value() != len(self.widgets) - 1:
             gtree.hide()
 
         self.cache[identifier] = ret_func
@@ -208,9 +211,9 @@ class ParameterTree(QtWidgets.QWidget):
 
         self.id = uuid.uuid4()
 
-    def push(self, parameter):
+    def push(self, parameter, show=True):
         default = parameter["default"]
-        label = QLabel(parameter["name"].capitalize())
+        label = QLabel(parameter["name"])
         node = None
         signal = None
 
@@ -242,7 +245,7 @@ class ParameterTree(QtWidgets.QWidget):
         hb = QHBoxLayout()
         hb.addWidget(label, alignment=Qt.AlignLeft)
         hb.addWidget(node, alignment=Qt.AlignRight)
-
-        self.layout.addLayout(hb)
+        if show:
+            self.layout.addLayout(hb)
 
         return signal

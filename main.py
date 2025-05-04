@@ -7,12 +7,14 @@ from PIL import Image
 from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
+from skimage.transform import resize
 
 from qt.app import TerrainApp
 from qt.tracks import circle_track
 from qt.tree import PTStatic
 from terrain.generation.fractal import generate_fractal_noise
 from terrain.generation.noise import (
+    domain_warp,
     generate_perlin_noise,
     generate_ridge_noise,
     generate_simplex_noise,
@@ -23,6 +25,10 @@ from terrain.visualization.pyvista_vis import (
     plot_terrain,
     visualize_terrain_with_trees,
 )
+
+
+def downsample_to_size(arr, target_shape):
+    return resize(arr, target_shape, mode="reflect", anti_aliasing=True)
 
 
 def get_image_files(directory):
@@ -80,13 +86,14 @@ def get_update_plotter(app):
     plotter = app.core.display.get_plotter()
     console = app.console
     ipanel = app.ipanel
+    lpanel = app.lpanel
 
     # Function to update the plotter when the user pushes the update button
     def update_plotter():
         plotter.clear()
 
-        # Start registering functions to the tree
-        noise_opt = console.register_option("Noise")
+        # Register noise functions
+        noise_opt = lpanel.register_option("Noise")
         noise_functions = {
             "Perlin": generate_perlin_noise,
             "Simplex": generate_simplex_noise,
@@ -96,29 +103,32 @@ def get_update_plotter(app):
         for noise in noise_functions:
             noisef = noise_functions[noise]
             noise_opt.register_function(noise, noisef)
-
-            # Register a function to the info panel to view its docstring
             ipanel.register_function(noise, noisef)
 
         ipanel.register_function("Fractal Noise", generate_fractal_noise)
+
+        lpanel.register_value("Domain Warp", PTStatic(""))
+        d_warp = lpanel.register_function("Domain Warp Function", domain_warp)
+        ipanel.register_function("Domain Warp", domain_warp)
+
         generate_noise = noise_opt.get_active_option()
 
         # Fractal noise params
-        is_fractal_enabled = console.register_value("Fractal", False)
-        generate_fractal = console.register_function(
+        is_fractal_enabled = lpanel.register_value("Fractal", False)
+        generate_fractal = lpanel.register_function(
             "Fractal Noise", generate_fractal_noise
         )
 
         # General params
-        height_scale = console.register_value("Height Scale", 10)
-        is_tree_enabled = console.register_value("Trees Enabled", False)
+        height_scale = lpanel.register_value("Height Scale", 10)
+        is_tree_enabled = lpanel.register_value("Trees Enabled", False)
 
         # Style transfer params
         is_style_transfer_enabled = console.register_value("Style Transfer", False)
 
         content_dir = "noises"
         content_opt = console.register_option("Content Path")
-        content_opt.register_value("", "", show=False)
+        content_opt.register_value("Custom", PTStatic("Custom"), show=False)
         for path in [f"{content_dir}/{file}" for file in get_image_files(content_dir)]:
             content_opt.register_value(path, PTStatic(path), show=False)
 
@@ -137,9 +147,12 @@ def get_update_plotter(app):
 
         noise = None
         if is_fractal_enabled.value():
-            noise = generate_fractal(generate_noise)
+            noise = generate_fractal(generate_noise, d_warp)
         else:
-            noise = generate_noise()
+            x, y = d_warp()
+            noise = generate_noise(x, y)
+
+        size = noise.shape
 
         tmpfile = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         norm = (noise + 1) / 2
@@ -149,7 +162,7 @@ def get_update_plotter(app):
         terrain = None
 
         if is_style_transfer_enabled.value():
-            if content_path_val.value() == "":
+            if content_path_val.value() == "Custom":
                 content_path = tmpfile.name
             else:
                 content_path = content_path_val.value()
@@ -223,6 +236,7 @@ def get_update_plotter(app):
                 graph_widget.layout.removeWidget(ph)
                 ph.deleteLater()
                 plotter.show()
+                terrain_map = downsample_to_size(terrain_map, size)
                 plot_terrain(plotter, terrain_map, show=False)
 
             worker.result_ready.connect(handle_style_result, Qt.QueuedConnection)

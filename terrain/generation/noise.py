@@ -2,10 +2,62 @@
 Perlin noise terrain generation implementation.
 """
 
+import time
+
 import numpy as np
 
 
-def generate_perlin_noise(shape=(100, 100), scale=10, offset=(0.0, 0.0), zoom=1.0):
+def domain_warp(
+    shape=(100, 100),
+    scale=10,
+    offset=(0.0, 0.0),
+    zoom=1.0,
+    strength=0.5,
+    falloff=0.5,
+    warps=4,
+):
+    """
+    Perform domain warping on a 2D coordinate grid with multiple iterations.
+
+    Args:
+        shape (tuple): Output shape (height, width) of the warped grid.
+        scale (float): Scale of the base noise used for warping
+                       (higher = more detail, smaller features).
+        offset (tuple): (x, y) offset to shift the sampled region.
+        zoom (float): Zoom factor for the noise; >1 zooms in, <1 zooms out.
+        strength (float): Initial strength of the warping applied to the coordinates.
+        falloff (float): Factor by which the warp strength decreases in each iteration.
+        warps (int): Number of times to apply domain warping.
+
+    Returns:
+        tuple: Two 2D arrays (x, y) representing the warped coordinates.
+    """
+    h, w = shape
+    # Initialize coordinates
+    lin_x = np.linspace(0, scale / zoom, w, endpoint=False) + offset[0]
+    lin_y = np.linspace(0, scale / zoom, h, endpoint=False) + offset[1]
+    x, y = np.meshgrid(lin_x, lin_y)
+
+    # Apply domain warping for warps iterations
+    for i in range(warps):
+        warp_noise_x = generate_perlin_noise(
+            x, y, scale=scale * 0.5, offset=offset, zoom=zoom
+        )
+        warp_noise_y = generate_simplex_noise(
+            x, y, scale=scale * 0.5, offset=offset, zoom=zoom
+        )
+
+        warp_noise_x = (warp_noise_x + 1) / 2 - 0.5
+        warp_noise_y = (warp_noise_y + 1) / 2 - 0.5
+
+        x += strength * warp_noise_x
+        y += strength * warp_noise_y
+        strength *= falloff
+
+    return x, y
+
+
+def generate_perlin_noise(x, y, scale=10, offset=(0.0, 0.0), zoom=1.0):
     """
     Generate a 2D Perlin noise array.
     Args:
@@ -32,12 +84,6 @@ def generate_perlin_noise(shape=(100, 100), scale=10, offset=(0.0, 0.0), zoom=1.
         g = vectors[h % 8]
         return g[..., 0] * x + g[..., 1] * y
 
-    h, w = shape
-    # Adjust scale by zoom and apply offset
-    lin_x = np.linspace(0, scale / zoom, w, endpoint=False) + offset[0]
-    lin_y = np.linspace(0, scale / zoom, h, endpoint=False) + offset[1]
-    x, y = np.meshgrid(lin_x, lin_y)
-
     # Integer part (grid coordinates)
     x0 = x.astype(int)
     y0 = y.astype(int)
@@ -49,7 +95,7 @@ def generate_perlin_noise(shape=(100, 100), scale=10, offset=(0.0, 0.0), zoom=1.
     sy = y - y0
 
     # Permutation table
-    rng = np.random.RandomState(0)  # Fixed seed for reproducibility
+    rng = np.random.RandomState(int(time.time()))
     perm = rng.permutation(256)
     perm = np.stack([perm, perm]).flatten()
 
@@ -71,7 +117,7 @@ def generate_perlin_noise(shape=(100, 100), scale=10, offset=(0.0, 0.0), zoom=1.
     return nxy
 
 
-def generate_simplex_noise(shape=(100, 100), scale=6, offset=(0.0, 0.0), zoom=1.0):
+def generate_simplex_noise(x, y, scale=6, offset=(0.0, 0.0), zoom=1.0):
     """
     Generate a 2D Simplex noise array.
 
@@ -101,12 +147,6 @@ def generate_simplex_noise(shape=(100, 100), scale=6, offset=(0.0, 0.0), zoom=1.
         g = vectors[h % 8]
         return g[..., 0] * x + g[..., 1] * y
 
-    h, w = shape
-    # Adjust scale by zoom and apply offset
-    lin_x = np.linspace(0, scale / zoom, w, endpoint=False) + offset[0]
-    lin_y = np.linspace(0, scale / zoom, h, endpoint=False) + offset[1]
-    x, y = np.meshgrid(lin_x, lin_y)
-
     # Skew points to grid
     s = (x + y) * F2
     i = np.floor(x + s).astype(int)
@@ -127,7 +167,7 @@ def generate_simplex_noise(shape=(100, 100), scale=6, offset=(0.0, 0.0), zoom=1.
     y2 = y0 - 1.0 + 2.0 * G2
 
     # Permutation table
-    rng = np.random.RandomState(0)  # Fixed seed for reproducibility
+    rng = np.random.RandomState(int(time.time()))
     perm = rng.permutation(256)
     perm = np.stack([perm, perm]).flatten()
 
@@ -161,7 +201,7 @@ def generate_simplex_noise(shape=(100, 100), scale=6, offset=(0.0, 0.0), zoom=1.
     return noise
 
 
-def generate_ridge_noise(shape=(100, 100), scale=6, offset=(0.0, 0.0), zoom=1.0, p=1.0):
+def generate_ridge_noise(x, y, scale=6, offset=(0.0, 0.0), zoom=1.0, p=1.0):
     """
     Generate a 2D Ridge noise array.
 
@@ -174,7 +214,7 @@ def generate_ridge_noise(shape=(100, 100), scale=6, offset=(0.0, 0.0), zoom=1.0,
     Returns:
         np.ndarray: 2D array of Ridge noise values normalized to the range [-1, 1].
     """
-    noise = generate_perlin_noise(shape, scale, offset, zoom)
+    noise = generate_perlin_noise(x, y, scale, offset, zoom)
     noise = np.power(1 - np.abs(noise), p)
 
     return noise - 0.5
