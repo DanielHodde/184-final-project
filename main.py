@@ -11,7 +11,7 @@ from skimage.transform import resize
 
 from qt.app import TerrainApp
 from qt.tracks import circle_track
-from qt.tree import PTStatic
+from qt.tree import PTImgPath, PTStatic
 from terrain.generation.erosion import add_erosion
 from terrain.generation.fractal import generate_fractal_noise
 from terrain.generation.noise import (
@@ -107,10 +107,18 @@ def get_update_plotter(app):
             noise_opt.register_function(noise, noisef)
             ipanel.register_function(noise, noisef)
 
+        # Noise params
+        shape = lpanel.register_value("Shape", (100, 100)).value()
+        scale = lpanel.register_value("Scale", 10).value()
+        offset = lpanel.register_value("Offset", (0.0, 0.0)).value()
+        zoom = lpanel.register_value("Zoom", 1.0).value()
+
         ipanel.register_function("Fractal Noise", generate_fractal_noise)
 
         lpanel.register_value("Domain Warp", PTStatic(""))
-        d_warp = lpanel.register_function("Domain Warp Function", domain_warp)
+        d_warp = lpanel.register_function(
+            "Domain Warp Function", domain_warp, show=["strength", "falloff", "warps"]
+        )
         ipanel.register_function("Domain Warp", domain_warp)
 
         generate_noise = noise_opt.get_active_option()
@@ -118,14 +126,16 @@ def get_update_plotter(app):
         # Fractal noise params
         is_fractal_enabled = lpanel.register_value("Fractal", False)
         generate_fractal = lpanel.register_function(
-            "Fractal Noise", generate_fractal_noise
+            "Fractal Noise",
+            generate_fractal_noise,
+            show=["octaves", "persistence", "lacunarity"],
         )
 
         # Erosion
         is_erosion_enabled = lpanel.register_value("Erosion", False)
         apply_erosion = lpanel.register_function("Erosion Function", add_erosion)
 
-        # General params
+        # Post-process
         height_scale = lpanel.register_value("Height Scale", 10)
         is_tree_enabled = lpanel.register_value("Trees Enabled", False)
 
@@ -136,12 +146,12 @@ def get_update_plotter(app):
         content_opt = console.register_option("Content Path")
         content_opt.register_value("Custom", PTStatic("Custom"), show=False)
         for path in [f"{content_dir}/{file}" for file in get_image_files(content_dir)]:
-            content_opt.register_value(path, PTStatic(path), show=False)
+            content_opt.register_value(path, PTImgPath(path))
 
         style_dir = "real-world"
         style_opt = console.register_option("Style Path")
         for path in [f"{style_dir}/{file}" for file in get_image_files(style_dir)]:
-            style_opt.register_value(path, PTStatic(path), show=False)
+            style_opt.register_value(path, PTImgPath(path))
 
         content_path_val = content_opt.get_active_option()
         style_path_val = style_opt.get_active_option()
@@ -153,9 +163,14 @@ def get_update_plotter(app):
 
         noise = None
         if is_fractal_enabled.value():
-            noise = generate_fractal(generate_noise, d_warp)
+
+            def warp_and_noise(shape=shape, scale=scale, offset=offset, zoom=zoom):
+                x, y = d_warp(shape, scale, offset, zoom)
+                return generate_noise(x, y)
+
+            noise = generate_fractal(warp_and_noise, shape, scale, offset, zoom)
         else:
-            x, y = d_warp()
+            x, y = d_warp(shape, scale, offset, zoom)
             noise = generate_noise(x, y)
 
         size = noise.shape
@@ -242,6 +257,9 @@ def get_update_plotter(app):
                 plotter.show()
 
                 terrain_map = downsample_to_size(terrain_map, size)
+                noise_mdn = np.median(noise)
+                terrain_map += noise_mdn - np.median(terrain_map)
+
                 if is_erosion_enabled.value():
                     terrain_map = apply_erosion(terrain_map)
 

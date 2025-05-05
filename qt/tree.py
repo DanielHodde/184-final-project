@@ -4,6 +4,7 @@ import uuid
 
 from PyQt6 import QtWidgets
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit
 
 
@@ -40,12 +41,24 @@ class PTGroup:
         ret_func = PTCallable(func)
         defaults = ret_func.defaults
 
+        show_defaults = None
+
+        if isinstance(show, list):
+            show_defaults = {key: False for key in defaults}
+            for kwarg in show:
+                show_defaults[kwarg] = True
+        else:
+            show_defaults = {key: show for key in defaults}
+
         for key in defaults:
+            show_param = show_defaults[key]
             ct = ParameterTree()
             self.tree.layout.addWidget(ct)
+            if not show_param:
+                ct.hide()
 
             entry = dict(name=key, default=defaults[key].value())
-            signal = ct.push(entry, show=show)
+            signal = ct.push(entry, show=show_param)
             arg = ret_func.defaults[key]
             if signal:
                 signal.connect(arg.set_value)
@@ -148,9 +161,12 @@ class PTCallable:
         self.func = func
         self.signature = inspect.signature(func)
         self.defaults = {}
+        self.positional_count = 0
         for param in self.signature.parameters.values():
             if param.kind != param.POSITIONAL_ONLY and param.default != param.empty:
                 self.defaults[param.name] = PTValue(param.default)
+            else:
+                self.positional_count += 1
 
     def __call__(self, *args, **kwargs):
         defaults = {key: self.defaults[key].value() for key in self.defaults}
@@ -160,6 +176,10 @@ class PTCallable:
                 defaults[key] = kwargs[key]
             else:
                 nkwargs[key] = kwargs[key]
+
+        keys = list(defaults.keys())
+        for i in range(len(args) - self.positional_count):
+            defaults.pop(keys[i])
 
         defaults = [v for v in defaults.values()]
         return self.func(*args, *defaults, **nkwargs)
@@ -192,7 +212,12 @@ class PTStatic(PTValue):
     """
 
     def __init__(self, value):
-        self.val = value
+        super().__init__(value)
+
+
+class PTImgPath(PTValue):
+    def __init__(self, value):
+        super().__init__(value)
 
 
 class ParameterTree(QtWidgets.QWidget):
@@ -215,6 +240,7 @@ class ParameterTree(QtWidgets.QWidget):
         default = parameter["default"]
         label = QLabel(parameter["name"])
         node = None
+        node_align = Qt.AlignRight
         signal = None
 
         if isinstance(default, list):
@@ -237,14 +263,22 @@ class ParameterTree(QtWidgets.QWidget):
         elif isinstance(default, PTStatic):
             node = QLabel(str(default.value()))
 
+        elif isinstance(default, PTImgPath):
+            node = QLabel()
+            pix = QPixmap(str(default.value())).scaled(100, 100, Qt.KeepAspectRatio)
+            node.setPixmap(pix)
+            label = None
+            node_align = Qt.AlignCenter
+
         else:
             node = QLineEdit()
             node.setText(str(parameter.get("default", 0)))
             signal = node.textChanged
 
         hb = QHBoxLayout()
-        hb.addWidget(label, alignment=Qt.AlignLeft)
-        hb.addWidget(node, alignment=Qt.AlignRight)
+        if label:
+            hb.addWidget(label, alignment=Qt.AlignLeft)
+        hb.addWidget(node, alignment=node_align)
         if show:
             self.layout.addLayout(hb)
 

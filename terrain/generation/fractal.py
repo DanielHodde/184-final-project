@@ -7,13 +7,13 @@ import numpy as np
 
 def generate_fractal_noise(
     noisef,
-    domain_warp,
+    shape=(100, 100),
     scale=10,
+    offset=(0.0, 0.0),
+    zoom=1.0,
     octaves=4,
     persistence=0.5,
     lacunarity=2.0,
-    offset=(0.0, 0.0),
-    zoom=1.0,
 ):
     """
     Generate a 2D fractal (FBM) Perlin noise array by summing multiple octaves.
@@ -28,8 +28,6 @@ def generate_fractal_noise(
     Returns:
         np.ndarray: 2D array of fractal Perlin noise values in range [-1, 1].
     """
-    x, y = domain_warp()
-    shape = x.shape
     w, h = shape
     noise = np.zeros(shape, dtype=np.float32)
     amplitude = 1.0
@@ -41,8 +39,7 @@ def generate_fractal_noise(
         octave_offset = (offset[0] * frequency, offset[1] * frequency)
         octave_scale = (scale * frequency) / zoom
 
-        x, y = domain_warp(scale=octave_scale, offset=octave_offset)
-        cur_noise = noisef(x, y, scale=octave_scale, offset=octave_offset)
+        cur_noise = noisef(scale=octave_scale, offset=octave_offset)
 
         noise += amplitude * cur_noise
 

@@ -12,9 +12,9 @@ def domain_warp(
     scale=10,
     offset=(0.0, 0.0),
     zoom=1.0,
+    warps=0,
     strength=0.6,
     falloff=0.5,
-    warps=0,
 ):
     """
     Perform domain warping on a 2D coordinate grid with multiple iterations.
@@ -25,9 +25,9 @@ def domain_warp(
                        (higher = more detail, smaller features).
         offset (tuple): (x, y) offset to shift the sampled region.
         zoom (float): Zoom factor for the noise; >1 zooms in, <1 zooms out.
+        warps (int): Number of times to apply domain warping.
         strength (float): Initial strength of the warping applied to the coordinates.
         falloff (float): Factor by which the warp strength decreases in each iteration.
-        warps (int): Number of times to apply domain warping.
 
     Returns:
         tuple: Two 2D arrays (x, y) representing the warped coordinates.
@@ -57,14 +57,12 @@ def domain_warp(
     return x, y
 
 
-def generate_perlin_noise(x, y, scale=10, offset=(0.0, 0.0), zoom=1.0):
+def generate_perlin_noise(x, y):
     """
     Generate a 2D Perlin noise array.
     Args:
-        shape (tuple): Output shape (height, width).
-        scale (float): The number of grid cells per axis (higher = more detail, smaller features).
-        offset (tuple): (x, y) offset to shift the sampled region.
-        zoom (float): Zoom factor; >1 zooms in, <1 zooms out.
+        x (np.ndarray): Grid of samples for the x-axis
+        y (np.ndarray): Grid of samples for the y-axis
     Returns:
         np.ndarray: 2D array of Perlin noise values in range [-1, 1].
     """
@@ -117,15 +115,13 @@ def generate_perlin_noise(x, y, scale=10, offset=(0.0, 0.0), zoom=1.0):
     return nxy
 
 
-def generate_simplex_noise(x, y, scale=6, offset=(0.0, 0.0), zoom=1.0):
+def generate_simplex_noise(x, y):
     """
     Generate a 2D Simplex noise array.
 
     Args:
-        shape (tuple): Output shape of the noise array (height, width).
-        scale (float): Base scale (frequency) of the noise pattern.
-        offset (tuple): (x, y) offset to shift the sampled region.
-        zoom (float): Zoom factor; >1 zooms in, <1 zooms out.
+        x (np.ndarray): Grid of samples for the x-axis
+        y (np.ndarray): Grid of samples for the y-axis
 
     Returns:
         np.ndarray: 2D array of Simplex noise values normalized to the range [-1, 1].
@@ -201,40 +197,36 @@ def generate_simplex_noise(x, y, scale=6, offset=(0.0, 0.0), zoom=1.0):
     return noise
 
 
-def generate_ridge_noise(x, y, scale=6, offset=(0.0, 0.0), zoom=1.0, p=1.0):
+def generate_ridge_noise(x, y, p=1.0):
     """
     Generate a 2D Ridge noise array.
 
     Args:
-        shape (tuple): Output shape of the noise array (height, width).
-        scale (float): Base scale (frequency) of the noise pattern.
-        offset (tuple): (x, y) offset to shift the sampled region.
-        zoom (float): Zoom factor; >1 zooms in, <1 zooms out.
+        x (np.ndarray): Grid of samples for the x-axis
+        y (np.ndarray): Grid of samples for the y-axis
         p (float): Exponent factor to determine sharpness of ridges.
     Returns:
         np.ndarray: 2D array of Ridge noise values normalized to the range [-1, 1].
     """
-    noise = generate_perlin_noise(x, y, scale, offset, zoom)
+    noise = generate_perlin_noise(x, y)
     noise = np.power(1 - np.abs(noise), p)
 
     return noise - (np.max(noise) - np.min(noise)) / 2
 
 
-def generate_billow_noise(x, y, scale=6, offset=(0.0, 0.0), zoom=1.0, p=1.7):
+def generate_billow_noise(x, y, p=1.7):
     """
     Generate a 2D Billow noise array.
 
     Args:
-        shape (tuple): Output shape of the noise array (height, width).
-        scale (float): Base scale (frequency) of the noise pattern.
-        offset (tuple): (x, y) offset to shift the sampled region.
-        zoom (float): Zoom factor; >1 zooms in, <1 zooms out.
+        x (np.ndarray): Grid of samples for the x-axis
+        y (np.ndarray): Grid of samples for the y-axis
         p (float): Exponent factor to adjust the softness of peaks.
     Returns:
         np.ndarray: 2D array of Billow noise values normalized to the range [-1, 1].
     """
     # Generate Perlin noise
-    noise = generate_perlin_noise(x, y, scale)
+    noise = generate_perlin_noise(x, y)
 
     # Apply Billow transformation
     billow_noise = np.abs(noise) ** p
@@ -265,10 +257,6 @@ def generate_fractal_perlin_noise(
         np.ndarray: 2D array of fractal Perlin noise values in range [-1, 1].
     """
     w, h = shape
-    # Initialize coordinates
-    lin_x = np.linspace(0, scale / zoom, w, endpoint=False) + offset[0]
-    lin_y = np.linspace(0, scale / zoom, h, endpoint=False) + offset[1]
-    x, y = np.meshgrid(lin_x, lin_y)
 
     noise = np.zeros(shape, dtype=np.float32)
     amplitude = 1.0
@@ -276,13 +264,21 @@ def generate_fractal_perlin_noise(
     max_amplitude = 0.0
 
     for _ in range(octaves):
+
         # Offset is scaled by frequency to allow zooming/panning
         octave_offset = (offset[0] * frequency, offset[1] * frequency)
         octave_scale = (scale * frequency) / zoom
 
-        noise += amplitude * generate_perlin_noise(
-            x, y, scale=octave_scale, offset=octave_offset
+        # Initialize coordinates
+        lin_x = (
+            np.linspace(0, octave_scale / zoom, w, endpoint=False) + octave_offset[0]
         )
+        lin_y = (
+            np.linspace(0, octave_scale / zoom, h, endpoint=False) + octave_offset[1]
+        )
+        x, y = np.meshgrid(lin_x, lin_y)
+
+        noise += amplitude * generate_perlin_noise(x, y)
 
         max_amplitude += amplitude
         amplitude *= persistence

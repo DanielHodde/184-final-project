@@ -3,13 +3,14 @@ import numpy as np
 
 def add_erosion(
     noise,
-    erosion_factor=1.0,
+    erosion_factor=0.8,
 ):
     scale = 10
     octaves = 4
     persistence = 0.5
     offset = (0.0, 0.0)
     zoom = 1.0
+    noise_min = np.min(noise)
 
     w, h = noise.shape
     # Initialize coordinates
@@ -31,15 +32,12 @@ def add_erosion(
 
         gradient_magnitude = np.power(dx, 2) + np.power(dy, 2)
         gradient_magnitude *= erosion_factor
-        noise += amplitude * (1 + gradient_magnitude)
+        noise -= amplitude * gradient_magnitude
 
         max_amplitude += amplitude
         amplitude *= persistence
 
     noise /= max_amplitude
-    noise_min = np.min(noise)
-    noise_max = np.max(noise)
+    noise += noise_min - np.min(noise)
 
-    noise = (noise - noise_min) / (noise_max - noise_min)
-    noise -= 0.5
     return noise
